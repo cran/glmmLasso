@@ -33,7 +33,10 @@ The \code{soccer} data contains different covariables for the teams that played 
 
 \references{
 Groll, A. and G. Tutz (2011a). Regularization for generalized additive mixed models by
-likelihood-based boosting. Technical Report \bold{110}, Ludwig-Maximilians-University.
+likelihood-based boosting. Technical Report \bold{110}, Ludwig-Maximilians-University.        
+
+Groll, A. and G. Tutz (2012). Regularization for Generalized Additive Mixed Models by Likelihood-Based Boosting. 
+\emph{Methods of Information in Medicine.} To appear.
 
 Groll, A. and G. Tutz (2011c). Variable selection for generalized linear mixed models by
 L1-penalized estimation. Technical Report \bold{108}, Ludwig-Maximilians-University.

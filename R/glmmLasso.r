@@ -76,15 +76,32 @@ return(list("length"=l2length,"normed"=vec.norm))
 
 #############################################################################################################################################               
 ###################################################### main Lasso function #################################################################
-#  fix=formula(points ~ transfer.spendings + I(transfer.spendings^2)+ ave.unfair.score + transfer.receits + ball.possession+ ave.unfair.score + transfer.receits + ball.possession+ tackles + ave.attend + sold.out);rnd=list(team=~1 + ave.attend);data=soccer;lambda=100;family=gaussian(link = "identity");control = list(steps=500, lin="ave.attend", method="REML", sel.method="bic")
-# fix=formula(y~x1+x2+x3+x4+x5);rnd=list(Person=~1);data=Hirst;lambda=4;family=poisson(link=log);control=list()
+
 est.glmmLasso<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"),control=list())
-{                      
+{  
+very.old.names<-attr(terms(fix),"term.labels")
+                    
 y <- model.response(model.frame(fix, data))
 
 X <- model.matrix(fix, data)
 
-very.old.names<-attr(terms(fix),"term.labels")
+if(dim(X)[2]==1)
+{
+if(colnames(X)=="(Intercept)")
+stop("No terms to select! Use glmer, glmmPQL or glmmML!")
+}
+
+if(all(substr(very.old.names,1,9)!="as.factor"))
+very.old.names<-colnames(X)[colnames(X)!="(Intercept)"]
+
+
+fix.part<-very.old.names[1]
+if(length(very.old.names)>1)
+{
+for(iu in 2:length(very.old.names))
+fix.part<-paste(fix.part,very.old.names[iu],sep=" + ")
+}
+fix<-formula(paste(attr(terms(fix),"variables")[[2]],fix.part,sep=" ~ "))
 
 old.names<-attr(X,"dimnames")[[2]]
 
@@ -197,7 +214,13 @@ X<-as.matrix(X)
 }
 # add Intercept 
 if (!all (X[,1]==1))
+{
+cat("Warning:\n")
+cat("Intercept has to be incorporated and is added!\n")
 X<-cbind(1,X)
+colnames(X)[1]<-"(Intercept)"
+old.names<-c("(Intercept)",old.names)
+}
 
 lin<-dim(X)[2]
 
@@ -205,8 +228,12 @@ Z_fastalles<-X
 
 no.sel<-is.element(attr(X,"dimnames")[[2]],control$lin)
 
-U<-X[,!no.sel]
+
+U<-as.matrix(X[,!no.sel])
+colnames(U)<-old.names[!no.sel]
 X<-as.matrix(X[,no.sel])
+colnames(X)<-old.names[no.sel]
+
 
 q<-dim(X)[2]
 phi<-1
@@ -303,7 +330,7 @@ D<-as.vector(family$mu.eta(Eta))
 
 active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,n*s))
 Z_aktuell<-Z_alles[,active]
-lin_akt<-sum(!is.element(Delta[1,1:lin],0))
+lin_akt<-q+sum(!is.element(Delta[1,(q+1):lin],0))
 
 if(s==1)
 {
@@ -450,7 +477,7 @@ D<-as.vector(family$mu.eta(Eta))
 active_old<-active
 active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,n*s))
 Z_aktuell<-Z_alles[,active]
-lin_akt<-sum(!is.element(Delta[l,1:lin],0))
+lin_akt<-q+sum(!is.element(Delta[l,(q+1):lin],0))
 
 if(s==1)
 {
@@ -551,7 +578,7 @@ glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=q_start,Delta_start=Del
 if(class(glmm_fin)=="try-error" || glmm_fin$opt>1990)
 {
 cat("Warning:\n")
-cat("Final Fisher scoring reestimation did not converge!")
+cat("Final Fisher scoring reestimation did not converge!:\n")
 }}
 
 if(class(glmm_final)=="try-error")
@@ -572,6 +599,8 @@ phi<-glmm_fin$phi
 
 Eta_opt<-Z_alles%*%Delta_neu
 Mu_opt<-as.vector(family$linkinv(Eta_opt))
+
+
 
 if(s==1)
 Qfinal<-sqrt(Qfinal)
@@ -613,7 +642,34 @@ names(Delta_neu)[(lin+1):(lin+n*s)]<-colnames(W)
 names(Standard_errors)[(lin+1):(lin+n*s)]<-colnames(W)
 colnames(Delta)<-c(old.names,colnames(W))
 
+aic<-NaN
+bic<-NaN
+
+
+if (family$family=="poisson")
+{
+aic<--2*sum(y*log(Mu_opt)-Mu_opt)+2*(sum(Delta_neu[1:(lin)]!=0)+0.5*(s*(s+1)))
+bic<--2*sum(y*log(Mu_opt)-Mu_opt)+log(N)*(sum(Delta_neu[1:(lin)]!=0)+0.5*(s*(s+1)))
+}
+
+if (family$family=="binomial")
+{
+aic<--2*sum(y*log(Mu_opt)+(1-y)*log(1-Mu_opt))+2*(sum(Delta_neu[1:(lin)]!=0)+0.5*(s*(s+1)))
+bic<--2*sum(y*log(Mu_opt)+(1-y)*log(1-Mu_opt))+log(N)*(sum(Delta_neu[1:(lin)]!=0)+0.5*(s*(s+1)))
+}
+
+
+if (family$family=="gaussian")
+{
+aic<--2*sum(y*Mu_opt-0.5*(Mu_opt^2))+2*(sum(Delta_neu[1:(lin)]!=0)+0.5*(s*(s+1)))
+bic<--2*sum(y*Mu_opt-0.5*(Mu_opt^2))+log(N)*(sum(Delta_neu[1:(lin)]!=0)+0.5*(s*(s+1)))
+}
+
+
+
 ret.obj=list()
+ret.obj$aic<-aic
+ret.obj$bic<-bic
 ret.obj$Deltamatrix<-Delta
 ret.obj$ranef<-Delta_neu[(lin+1):(lin+n*s)]
 ret.obj$coefficients<-Delta_neu[1:(lin)]
@@ -683,7 +739,7 @@ print(x$call)
 cat("\n")
 cat("\nFixed Effects:\n")
 cat("\nCoefficients:\n")
-printCoefmat(x$coefficients, P.value=TRUE, has.Pvalue=TRUE)
+printCoefmat(x$coefficients, P.values=TRUE, has.Pvalue=TRUE)
 cat("\nRandom Effects:\n")
 cat("\nStdDev:\n")
 print(x$StdDev)
@@ -743,13 +799,13 @@ W<-cbind(W,W_start[,seq(from=i,to=i+(s-1)*n,by=n)])
 }else{
 W<-W_start
 }
-y<- as.vector(family$linkinv(X%*%object$coef))
+y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))
 rand.ok<-is.element(newdata[,object$subject],subj.ok)
 W.neu<-W[,subj.test]
-y[rand.ok]<- family$linkinv(cbind(X,W.neu)[rand.ok,]%*%c(object$coef,object$ranef[match(colnames(W.neu),names(object$ranef))]))
+y[rand.ok]<- family$linkinv(cbind(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok,]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(colnames(W.neu),names(object$ranef))]))
 }else{
 W<-NULL
-y<- as.vector(family$linkinv(X%*%object$coef))
+y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))
 }
 }
 y
