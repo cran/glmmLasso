@@ -14,8 +14,8 @@ L1-penalized estimation.
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.0.0\cr
-Date: \tab 2011-10-26\cr
+Version: \tab 1.0.1\cr
+Date: \tab 2012-03-29\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -39,7 +39,7 @@ glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL, control = list(
     \code{formula}.}
   \item{lambda}{the penalty parameter that controls the shrinkage of fixed terms and controls the variable selection.
   The optimal penalty parameter is a tuning parameter of the procedure that has to be determined, 
- e.g. by use of information criteria or cross validation.} 
+ e.g. by use of information criteria or cross validation. (See details or the quick demo for an example.)} 
   \item{family}{
     a GLM family, see \code{\link[stats]{glm}} and
     \code{\link[stats]{family}}. If \code{family} is missing then a
@@ -60,7 +60,13 @@ The \code{predict} function uses also estimates of random effects for prediction
   \item{Q_long}{a list containing the estimates of the random effects standard deviation or variance-covariance parameters, respectively, for each boosting iteration.}
   \item{fixerror}{a vector with standrad errors for the fixed effects.}
   \item{ranerror}{a vector with standrad errors for the random effects.}
+  \item{aic}{AIC: The negative of twice the log-likelihood plus twice the corresponding degrees of freedom. The corresponding degrees of freedom are determined by the sum of nonzero coefficients corresponding to fixed
+effects plus the number of random effects covariance parameters that have to be  estimated.}
+  \item{bic}{BIC: The negative of twice the log-likelihood plus the product of the logarithm of the overall number of observations
+  with the corresponding degrees of freedom. The corresponding degrees of freedom are determined by the sum of nonzero coefficients corresponding to fixed
+effects plus the number of random effects covariance parameters that have to be  estimated.}
 }
+
 
 
 \author{
