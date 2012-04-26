@@ -361,7 +361,9 @@ X_aktuell<-Z_fastalles[,aktuell_vec]
 
 if(s==1)
 {
-optim.obj<-bobyqa(sqrt(Q_start),likelihood_bobyqa,D=D,Sigma=Sigma,X=Z_fastalles,X_aktuell=X_aktuell,Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = 1e-14, upper = 20)
+upp<-min(20,50*Q_start)
+low<-1e-14
+optim.obj<-bobyqa(sqrt(Q_start),likelihood_bobyqa,D=D,Sigma=Sigma,X=Z_fastalles,X_aktuell=X_aktuell,Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp)
 Q1<-as.matrix(optim.obj$par)^2
 }else{
 q_start_vec<-c(diag(q_start),q_start[lower.tri(q_start)])
@@ -510,8 +512,11 @@ aktuell_vec<-!is.element(Delta[l,1:(lin)],0)
 X_aktuell<-Z_fastalles[,aktuell_vec]
 
 if(s==1)
-{        
-optim.obj<-try(bobyqa(sqrt(Q1),likelihood_bobyqa,D=D,Sigma=Sigma,X=Z_fastalles,X_aktuell=X_aktuell,Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = 1e-12, upper = 20))
+{
+if(Q1<1e-14)
+low<-0
+       
+optim.obj<-try(bobyqa(sqrt(Q1),likelihood_bobyqa,D=D,Sigma=Sigma,X=Z_fastalles,X_aktuell=X_aktuell,Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp))
 Q1<-as.matrix(optim.obj$par)^2
 }else{
 Q1_vec<-c(diag(Q1),Q1[lower.tri(Q1)])
@@ -568,34 +573,48 @@ D_opt<-as.vector(family$mu.eta(Eta_opt))
 Qfinal<-Q[[l+1]]
 
 aaa<-!is.element(Delta_neu[1:(lin)],0)
-
+#X=Z_fastalles[,aaa];q_start=Qfinal;Delta_start=Delta_neu[c(aaa,rep(T,n*s))];steps=control$maxIter;method=control$method;overdispersion=control$overdispersion
 glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=Qfinal,Delta_start=Delta_neu[c(aaa,rep(T,n*s))],s,steps=control$maxIter,family=family,method=control$method,overdispersion=control$overdispersion,phi=phi))
 
-if(class(glmm_fin)=="try-error" || glmm_fin$opt>(control$maxIter-5))
+if(class(glmm_fin)!="try-error")
 {
-glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=q_start,Delta_start=Delta_start[c(aaa,rep(T,n*s))],s,steps=2000,family=family,method=control$method,overdispersion=control$overdispersion,phi=phi))
+if(glmm_fin$opt>(control$maxIter-5))
+{
+cat("Warning:\n")
+cat("Final Fisher scoring reestimation did not converge!\n")
+}}else{
+glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=Qfinal,Delta_start=Delta_neu[c(aaa,rep(T,n*s))],s,steps=control$maxIter,family=family,method=control$method,overdispersion=control$overdispersion,phi=phi,nue=0.1))
+if(glmm_fin$opt>(control$maxIter-5))
+{
+cat("Warning:\n")
+cat("Final Fisher scoring reestimation did not converge!\n")
+}
+}
+
+#X=Z_fastalles[,aaa];q_start=q_start;Delta_start=Delta_start[c(aaa,rep(T,n*s))];steps=control$maxIter;method=control$method;overdispersion=control$overdispersion;phi=1
+
+if(class(glmm_fin)=="try-error")
+glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=q_start,Delta_start=Delta_start[c(aaa,rep(T,n*s))],s,steps=2000,family=family,method=control$method,overdispersion=control$overdispersion,phi=1))
 
 if(class(glmm_fin)=="try-error" || glmm_fin$opt>1990)
 {
 cat("Warning:\n")
-cat("Final Fisher scoring reestimation did not converge!:\n")
-}}
+cat("Final Fisher scoring reestimation did not converge!\n")
+}
 
-if(class(glmm_final)=="try-error")
-break
 
 Delta_neu2<-Delta_neu
+Standard_errors<-rep(NA,length(Delta_neu))
+
+if(class(glmm_fin)!="try-error")
+{
 Delta_neu2[c(aaa,rep(T,n*s))]<-glmm_fin$Delta
+Standard_errors[c(aaa,rep(T,n*s))]<-glmm_fin$Standard_errors
+Qfinal<-glmm_fin$Q
+phi<-glmm_fin$phi
+}
 
 Delta_neu<-Delta_neu2
-
-Standard_errors<-rep(0,length(Delta_neu))
-Standard_errors[c(aaa,rep(T,n*s))]<-glmm_fin$Standard_errors
-
-
-Qfinal<-glmm_fin$Q
-
-phi<-glmm_fin$phi
 
 Eta_opt<-Z_alles%*%Delta_neu
 Mu_opt<-as.vector(family$linkinv(Eta_opt))

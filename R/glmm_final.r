@@ -1,4 +1,4 @@
-glmm_final<-function(y,X,W,k,q_start,Delta_start,s,steps=1000,family,method,overdispersion,phi)
+glmm_final<-function(y,X,W,k,q_start,Delta_start,s,steps=1000,family,method,overdispersion,phi,nue=1)
 {
 N<-length(y)
 lin<-ncol(as.matrix(X))
@@ -49,7 +49,7 @@ F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-chol2inv(chol(F_gross))
 Delta_r<-InvFisher%*%score_vec
-Delta[1,]<-Delta[1,]+Delta_r
+Delta[1,]<-Delta[1,]+nue*Delta_r
 
 Eta<-Z_alles%*%Delta[1,]
 
@@ -129,7 +129,7 @@ for (l in 2:steps)
 
 InvFisher<-chol2inv(chol(F_gross))
 Delta_r<-InvFisher%*%score_vec
-Delta[l,]<-Delta[l-1,]+Delta_r
+Delta[l,]<-Delta[l-1,]+nue*Delta_r
 Eta<-Z_alles%*%Delta[l,]
 Mu<-as.vector(family$linkinv(Eta))
 Sigma<-as.vector(family$variance(Mu))
