@@ -2,8 +2,8 @@ Package: glmmLasso
 Type: Package
 Title: Variable selection for generalized linear mixed models by
         L1-penalized estimation
-Version: 1.0.2
-Date: 2012-04-26
+Version: 1.0.3
+Date: 2012-06-29
 Author: Andreas Groll
 Maintainer: Andreas Groll <andreas.groll@math.lmu.de>
 Description: Variable selection for generalized linear mixed models by
@@ -11,6 +11,6 @@ Description: Variable selection for generalized linear mixed models by
 Depends: methods, R(>= 2.9.2)
 Imports: minqa
 License: GPL-2
-Packaged: 2012-04-26 10:47:03 UTC; JasminAndy
 Repository: CRAN
-Date/Publication: 2012-04-26 11:01:45
+Packaged: 2012-06-29 15:21:19 UTC; user
+Date/Publication: 2012-07-09 11:32:57

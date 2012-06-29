@@ -1,6 +1,11 @@
 ##################### likelihood function for the optimization with bobyqa ###############
 likelihood_bobyqa<-function(Q_breslow,D,Sigma,X,X_aktuell,Eta_tilde,Betadach,W,n)
 {
+if(is.matrix(X)==FALSE)
+{
+X<-as.vector(X)
+X<-as.matrix(X)
+}
 Q_breslow<-Q_breslow^2
 
 likeliparam<-1000
@@ -114,6 +119,11 @@ return(ret.obj)
 
 likelihood<-function(q_vec,D,Sigma,X,X_aktuell,Eta_tilde,Betadach,W,n,s,k)
 {
+if(is.matrix(X)==FALSE)
+{
+X<-as.vector(X)
+X<-as.matrix(X)
+}
 Q_breslow1<-matrix(0,s,s)
 Q_breslow1[lower.tri(Q_breslow1)]<-q_vec[(s+1):(s*(s+1)*0.5)]
 Q_breslow1<-Q_breslow1+t(Q_breslow1)
