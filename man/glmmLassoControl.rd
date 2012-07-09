@@ -7,8 +7,8 @@
 }
 
 \usage{
-glmmLassoControl(nue=1,lin="(Intercept)",start=NULL,q_start=NULL, steps=2000,method="EM", 
-                 overdispersion=FALSE, epsilon=1e-7, maxIter=1000, print.iter=FALSE)
+glmmLassoControl(nue=1,lin="(Intercept)",start=NULL,q_start=NULL, phi_start = 1, steps=2000,method="EM", 
+                 overdispersion=FALSE, epsilon=1e-7, maxIter=1000, print.iter=FALSE, method.final="REML")
 } 
     
 \arguments{
@@ -16,6 +16,7 @@ glmmLassoControl(nue=1,lin="(Intercept)",start=NULL,q_start=NULL, steps=2000,met
   \item{lin}{a vector specifying fixed effects, which are excluded from shrinkage.}
   \item{start}{a vector containing starting values for fixed and random effects of suitable length. Default is a vector full of zeros.}
   \item{q_start}{a scalar or matrix of suitable dimension, specifying starting values for the random-effects variance-covariance matrix. Default is a scalar 0.1 or diagonal matrix with 0.1 in the diagonal.}
+  \item{phi_start}{a scalar specifying the the starting value of the scale parameter. Default is 1.}
   \item{steps}{the number of interations. Default is 2000.}
   \item{method}{two methods for the computation of the random-effects variance-covariance parameter estimates can be chosen, an EM-type estimate and an REML-type estimate. The REML-type estimate uses the \code{bobyqa} function for optimization.
                 Default is \code{EM}.}
@@ -24,6 +25,10 @@ glmmLassoControl(nue=1,lin="(Intercept)",start=NULL,q_start=NULL, steps=2000,met
   \item{epsilon}{controls the speed of convergence. Default is 1e-7.}
   \item{maxIter}{the number of interations for the final Fisher scoring reestimation procedure. Default is 1000.}
     \item{print.iter}{logical. Should the number of interations be printed?. Default is FALSE.}
+      \item{method.final}{two methods for the computation of the random-effects variance-covariance parameter estimates  
+                    for the final Fisher scoring reestimation procedure  can be chosen, an EM-type estimate and an REML-type estimate. The REML-type estimate uses the \code{bobyqa} function for optimization.
+                Default is \code{REML}.}
+
 
 }
 

@@ -236,7 +236,7 @@ colnames(X)<-old.names[no.sel]
 
 
 q<-dim(X)[2]
-phi<-1
+phi<-control$phi_start
 
 if(lin>1)
 {
@@ -573,28 +573,29 @@ D_opt<-as.vector(family$mu.eta(Eta_opt))
 Qfinal<-Q[[l+1]]
 
 aaa<-!is.element(Delta_neu[1:(lin)],0)
-#X=Z_fastalles[,aaa];q_start=Qfinal;Delta_start=Delta_neu[c(aaa,rep(T,n*s))];steps=control$maxIter;method=control$method;overdispersion=control$overdispersion
-glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=Qfinal,Delta_start=Delta_neu[c(aaa,rep(T,n*s))],s,steps=control$maxIter,family=family,method=control$method,overdispersion=control$overdispersion,phi=phi))
 
-if(class(glmm_fin)!="try-error")
-{
-if(glmm_fin$opt>(control$maxIter-5))
-{
-cat("Warning:\n")
-cat("Final Fisher scoring reestimation did not converge!\n")
-}}else{
-glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=Qfinal,Delta_start=Delta_neu[c(aaa,rep(T,n*s))],s,steps=control$maxIter,family=family,method=control$method,overdispersion=control$overdispersion,phi=phi,nue=0.1))
-if(glmm_fin$opt>(control$maxIter-5))
-{
-cat("Warning:\n")
-cat("Final Fisher scoring reestimation did not converge!\n")
-}
-}
+glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=q_start,Delta_start=Delta_start[c(aaa,rep(T,n*s))],s,steps=2000,family=family,method=control$method.final,overdispersion=control$overdispersion,phi=control$phi))
 
-#X=Z_fastalles[,aaa];q_start=q_start;Delta_start=Delta_start[c(aaa,rep(T,n*s))];steps=control$maxIter;method=control$method;overdispersion=control$overdispersion;phi=1
+#glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=Qfinal,Delta_start=Delta_neu[c(aaa,rep(T,n*s))],s,steps=control$maxIter,family=family,method="REML",overdispersion=control$overdispersion,phi=phi))
 
-if(class(glmm_fin)=="try-error")
-glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=q_start,Delta_start=Delta_start[c(aaa,rep(T,n*s))],s,steps=2000,family=family,method=control$method,overdispersion=control$overdispersion,phi=1))
+#if(class(glmm_fin)!="try-error")
+#{
+#if(glmm_fin$opt>(control$maxIter-5))
+#{
+#cat("Warning:\n")
+#cat("Final Fisher scoring reestimation did not converge!\n")
+#}}else{
+#glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=Qfinal,Delta_start=Delta_neu[c(aaa,rep(T,n*s))],s,steps=control$maxIter,family=family,method="REML",overdispersion=control$overdispersion,phi=phi,nue=0.1))
+#if(glmm_fin$opt>(control$maxIter-5))
+#{
+#cat("Warning:\n")
+#cat("Final Fisher scoring reestimation did not converge!\n")
+#}
+#}
+
+
+#if(class(glmm_fin)=="try-error")
+#glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,q_start=q_start,Delta_start=Delta_start[c(aaa,rep(T,n*s))],s,steps=2000,family=family,method="REML",overdispersion=control$overdispersion,phi=1))
 
 if(class(glmm_fin)=="try-error" || glmm_fin$opt>1990)
 {
@@ -821,7 +822,10 @@ W<-W_start
 y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))
 rand.ok<-is.element(newdata[,object$subject],subj.ok)
 W.neu<-W[,subj.test]
-y[rand.ok]<- family$linkinv(cbind(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok,]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(colnames(W.neu),names(object$ranef))]))
+if(dim(X)[1]!=1)
+{
+y[rand.ok]<- family$linkinv(cbind(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok,]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(colnames(W.neu),names(object$ranef))]))}else{
+y[rand.ok]<- family$linkinv(c(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(names(W.neu),names(object$ranef))]))}
 }else{
 W<-NULL
 y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))

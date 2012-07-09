@@ -73,7 +73,7 @@ Betadach<-Delta[1,1:lin]
 
 if(s==1)
 {
-optim.obj<-bobyqa(sqrt(q_start),likelihood_bobyqa,D=D,Sigma=Sigma,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W,lower = 1e-14, upper=20)
+optim.obj<-bobyqa(sqrt(q_start),likelihood_bobyqa,D=D,Sigma=Sigma,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W,lower = 1e-13, upper=20)
 Q1<-as.matrix(optim.obj$par)^2
 }else{
 q_start_vec<-c(diag(q_start),q_start[lower.tri(q_start)])
@@ -152,7 +152,7 @@ Betadach<-Delta[l,1:lin]
 
 if(s==1)
 {
-optim.obj<-bobyqa(sqrt(Q1),likelihood_bobyqa,D=D,Sigma=Sigma,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = 1e-12, upper = 20)
+optim.obj<-bobyqa(sqrt(Q1),likelihood_bobyqa,D=D,Sigma=Sigma,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = 1e-13, upper = 20)
 Q1<-as.matrix(optim.obj$par)^2
 }else{
 Q1_vec<-c(diag(Q1),Q1[lower.tri(Q1)])
@@ -194,6 +194,9 @@ kritval2<-sqrt(sum((Delta[l-2,]-Delta[l,])^2))/sqrt(sum(Delta[l-2,]^2))
 if(kritval2<1e-6)
 break
 }}
+
+#print(paste("Final Iteration =", l,sep=""))
+
 
 opt<-l
 Deltafinal<-Delta[l,]
