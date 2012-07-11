@@ -14,8 +14,8 @@ L1-penalized estimation.
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.0.3\cr
-Date: \tab 2012-06-29\cr
+Version: \tab 1.0.4\cr
+Date: \tab 2012-07-11\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
