@@ -621,9 +621,9 @@ Eta_opt<-Z_alles%*%Delta_neu
 Mu_opt<-as.vector(family$linkinv(Eta_opt))
 
 
-
 if(s==1)
 Qfinal<-sqrt(Qfinal)
+
 
 if(!is.matrix(Qfinal))
 Qfinal<-as.matrix(Qfinal)
