@@ -14,8 +14,8 @@ L1-penalized estimation.
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.0.4\cr
-Date: \tab 2012-07-11\cr
+Version: \tab 1.0.5\cr
+Date: \tab 2012-07-31\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -57,7 +57,7 @@ The \code{predict} function uses also estimates of random effects for prediction
   \item{fitted.values}{a vector of fitted values.}
   \item{phi}{estimated scale parameter, if \code{overdispersion=TRUE} is used. Otherwise, it is equal to one.}  
   \item{Deltamatrix}{a matrix containing the estimates of fixed and random effects (columns) for each boosting iteration (rows).}
-  \item{Q_long}{a list containing the estimates of the random effects standard deviation or variance-covariance parameters, respectively, for each boosting iteration.}
+  \item{Q_long}{a list containing the estimates of the random effects variance-covariance parameters for each iteration.}
   \item{fixerror}{a vector with standrad errors for the fixed effects.}
   \item{ranerror}{a vector with standrad errors for the random effects.}
   \item{aic}{AIC: The negative of twice the log-likelihood plus twice the corresponding degrees of freedom. The corresponding degrees of freedom are determined by the sum of nonzero coefficients corresponding to fixed

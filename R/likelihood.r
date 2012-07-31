@@ -146,8 +146,13 @@ determ<-rep(0,n)
 determ[1]<-det(V[(1:k[1]),(1:k[1])])
 
 for (i in 2:n)
+{
+if((sum(k[1:(i-1)])+1)<(sum(k[1:i])))
+{
 determ[i]<-det(V[(sum(k[1:(i-1)])+1):(sum(k[1:i])),(sum(k[1:(i-1)])+1):(sum(k[1:i]))])
-
+}else{
+determ[i]<-V[(sum(k[1:i])),(sum(k[1:i]))]
+}}
 
 norm_determ<-min(determ[determ!=0])
 determ_gross<-prod((1/norm_determ)*determ)
