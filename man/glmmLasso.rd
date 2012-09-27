@@ -14,8 +14,8 @@ L1-penalized estimation.
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.0.5\cr
-Date: \tab 2012-07-31\cr
+Version: \tab 1.0.6\cr
+Date: \tab 2012-09-27\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -74,8 +74,9 @@ Andreas Groll
 }
 
 \references{
-Groll, A. and G. Tutz (2011). Variable selection for generalized linear mixed models by
-L1-penalized estimation. Technical Report \bold{108}, Ludwig-Maximilians-University.
+Groll, A. and G. Tutz (2012). 
+Variable selection for generalized linear mixed models by
+L1-penalized estimation. \emph{Statistics and Computing}. To appear.
 
 Goeman, J. J. (2010). L1 Penalized Estimation in the Cox Proportional Hazards Model.
 \emph{Biometrical Journal} 52, 70--84.
