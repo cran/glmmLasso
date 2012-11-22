@@ -14,8 +14,8 @@ L1-penalized estimation.
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.0.6\cr
-Date: \tab 2012-09-27\cr
+Version: \tab 1.1.0\cr
+Date: \tab 2012-10-13\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -97,18 +97,19 @@ soccer<-data.frame(soccer)
 ## linear mixed models
 lm1 <- glmmLasso(points ~ transfer.spendings + I(transfer.spendings^2)
        + ave.unfair.score + transfer.receits + ball.possession
-       + tackles + ave.attend + sold.out, rnd = list(team=~1), data = soccer, lambda=400)
+       + tackles + ave.attend + sold.out, rnd = list(team=~1), 
+       lambda=400, data = soccer,control = list(steps=100,print.iter=TRUE))
       
 lm2 <- glmmLasso(points~transfer.spendings + I(transfer.spendings^2)
        + ave.unfair.score + transfer.receits + ball.possession
        + tackles + ave.attend + sold.out, rnd = list(team=~1 + ave.attend), lambda=500, 
-       data = soccer, control = list(steps=100, lin="ave.attend", method="REML"))
+       data = soccer, control = list(steps=50, lin="ave.attend", method="REML"))
 
 ## linear mixed models with categorical covariates
 lm3 <- glmmLasso(points ~ transfer.spendings + I(transfer.spendings^2)
        + as.factor(red.card) + as.factor(yellow.red.card) 
        + transfer.receits + ball.possession + tackles + ave.attend
-       + sold.out, rnd = list(team=~1), data = soccer, lambda=500)
+       + sold.out, rnd = list(team=~1), data = soccer, lambda=500,control = list(steps=100,print.iter=TRUE))
 
 
 ## generalized linear mixed model

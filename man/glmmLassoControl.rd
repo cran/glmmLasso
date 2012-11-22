@@ -8,7 +8,7 @@
 
 \usage{
 glmmLassoControl(nue=1,lin="(Intercept)",start=NULL,q_start=NULL, phi_start = 1, steps=2000,method="EM", 
-                 overdispersion=FALSE, epsilon=1e-7, maxIter=1000, print.iter=FALSE, method.final="REML")
+                 overdispersion=FALSE, epsilon=1e-7, maxIter=1000, print.iter=FALSE, print.iter.final=FALSE,method.final="REML")
 } 
     
 \arguments{
@@ -25,6 +25,7 @@ glmmLassoControl(nue=1,lin="(Intercept)",start=NULL,q_start=NULL, phi_start = 1,
   \item{epsilon}{controls the speed of convergence. Default is 1e-7.}
   \item{maxIter}{the number of interations for the final Fisher scoring reestimation procedure. Default is 1000.}
     \item{print.iter}{logical. Should the number of interations be printed?. Default is FALSE.}
+    \item{print.iter.final}{logical. Should the number of interations in the final re-estimation step be printed?. Default is FALSE.}
       \item{method.final}{two methods for the computation of the random-effects variance-covariance parameter estimates  
                     for the final Fisher scoring reestimation procedure  can be chosen, an EM-type estimate and an REML-type estimate. The REML-type estimate uses the \code{bobyqa} function for optimization.
                 Default is \code{REML}.}

@@ -1,4 +1,4 @@
-glmm_final<-function(y,X,W,k,q_start,Delta_start,s,steps=1000,family,method,overdispersion,phi,nue=1)
+glmm_final<-function(y,X,W,k,q_start,Delta_start,s,steps=1000,family,method,overdispersion,phi,nue=1,print.iter.final=FALSE)
 {
 N<-length(y)
 lin<-ncol(as.matrix(X))
@@ -10,6 +10,9 @@ if(overdispersion)
 Sigma<-Sigma*phi
 D<-as.vector(family$mu.eta(Eta))
 W0_inv<-D*1/Sigma*D
+
+if(print.iter.final)
+print(paste("Final Re-estimation Iteration ", 1,sep=""))
 
 
 Z_alles<-cbind(X,W)
@@ -113,6 +116,9 @@ Sigma<-Sigma*phi
 ################################################################### Boost ###################################################################
 for (l in 2:steps)
 {
+
+if(print.iter.final)
+print(paste("Final Re-estimation Iteration ", l,sep=""))
 
   if(s==1)
   {
