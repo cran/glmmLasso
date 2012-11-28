@@ -1,6 +1,6 @@
-4a7ab3f57b7266829277ef6a708f6346 *DESCRIPTION
+e44ff8f5e6a54ced403ccbc24e8b7f8a *DESCRIPTION
 4bdd59c1792845eeba730c8d97986553 *NAMESPACE
-9d64607f0fb156d095cdd3201c80f056 *R/glmmLasso.r
+e561e20ad74f8a2493f764160fd46fae *R/glmmLasso.r
 7143d94d1678e0047c359b950d0f7920 *R/glmmLassoControl.r
 9f1d00b6213674b6f1c99b4ac89e327d *R/glmm_final.r
 ba386a6da17b6355fc5986db7d548f5e *R/glmm_final_mutli_random.r
@@ -8,6 +8,6 @@ bad4d982087ef7b28d99363109af9b73 *R/likelihood.r
 c58f41427b397e3dcf0d253af267875b *data/soccer.rda
 338c3ca1e0d8420841dec7fea8673afa *demo/00Index
 8b85575c0cb57e61ae69771c288396e6 *demo/glmmLasso-soccer.r
-ce3d62513859626048d66dbf72e0fb09 *man/glmmLasso.rd
+e84232a679a5013cc76c9f3e56a3f131 *man/glmmLasso.rd
 8f4e58e729dca674348609474916881c *man/glmmLassoControl.rd
 98b54f6b533b8091a3d9d7e1ddd50b11 *man/soccer.Rd
