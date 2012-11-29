@@ -1101,7 +1101,7 @@ y<-fitted(object)
 rnd.len<-object$rnd.len                 
 family<-object$family
 
-if(length(object$factor.names>0))
+if(length(object$factor.names)>0)
 {
 for (i in 1:length(object$factor.names))
 newdata[,object$factor.names[i]]<-factor(newdata[,object$factor.names[i]],levels=object$factor.list[[i]])
@@ -1133,8 +1133,6 @@ if(s>1)
 subj.test<-cbind(subj.test,subj.test)
 subj.test<-as.vector(t(subj.test))
 }
-
-subj.test<-subj.test.long
 
 if(s>1)
 {
@@ -1213,7 +1211,10 @@ subj.test.long<-c(subj.test.long,subj.test)
 
 dim.W.single<-rep(0,rnd.len+1)
 for(zu in 1:rnd.len)
+{
+if(krit.random[zu])
 dim.W.single[zu+1]<-dim(W.single[[zu]])[2]
+}
 
 if(!all(!krit.random))
 {
