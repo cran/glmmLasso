@@ -1,5 +1,5 @@
-##################### likelihood function for the optimization with bobyqa ###############
-likelihood_bobyqa<-function(Q_breslow,D,Sigma,X,X_aktuell,Eta_tilde,Betadach,W,n)
+##################### likelihood function for the optimization with nlminb ###############
+likelihood_nlminb<-function(Q_breslow,D,Sigma,X,X_aktuell,Eta_tilde,Betadach,W,n)
 {
 if(is.matrix(X)==FALSE)
 {
@@ -106,9 +106,12 @@ while(!krit & j<likeliparam+1)
 j<-j+1
 }
 
-likeli<- -0.5*((ncol(V_tilde)-ncol(X_aktuell))*log(mean_V_tilde)+log(VVV_tilde)+log(det(t(X_aktuell)%*%chol2inv(chol(V_tilde))%*%X_aktuell))+t(Eta_tilde-X%*%Betadach)%*%chol2inv(chol(V))%*%(Eta_tilde-X%*%Betadach))
+likeli<- -0.5*(ncol(V_tilde)*log(mean_V_tilde)+log(VVV_tilde)
+               +log(det(t(X_aktuell)%*%chol2inv(chol(V_tilde))%*%X_aktuell))
+               +t(Eta_tilde-X%*%Betadach)%*%chol2inv(chol(V))%*%(Eta_tilde-X%*%Betadach))
 }else{
-likeli<- -0.5*(log(det(V))+log(det(t(X_aktuell)%*%chol2inv(chol(V))%*%X_aktuell))+t(Eta_tilde-X%*%Betadach)%*%chol2inv(chol(V))%*%(Eta_tilde-X%*%Betadach))
+likeli<- -0.5*(log(det(V))+log(det(t(X_aktuell)%*%chol2inv(chol(V))%*%X_aktuell))
+               +t(Eta_tilde-X%*%Betadach)%*%chol2inv(chol(V))%*%(Eta_tilde-X%*%Betadach))
 }
 
 ret.obj<- -likeli

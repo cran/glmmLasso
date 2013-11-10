@@ -32,18 +32,15 @@ The \code{soccer} data contains different covariables for the teams that played 
 
 
 \references{
-Groll, A. and G. Tutz (2011a). Regularization for generalized additive mixed models by
-likelihood-based boosting. Technical Report \bold{110}, Ludwig-Maximilians-University.        
+Groll, A. and G. Tutz (2012). Regularization for generalized additive mixed models by likelihood-based boosting. \emph{Methods of Information in Medicine.} 51(2), 168-177.
 
-Groll, A. and G. Tutz (2012). Regularization for Generalized Additive Mixed Models by Likelihood-Based Boosting. 
-\emph{Methods of Information in Medicine.} To appear.
-
-Groll, A. and G. Tutz (2011c). Variable selection for generalized linear mixed models by
-L1-penalized estimation. Technical Report \bold{108}, Ludwig-Maximilians-University.
+Groll, A. and G. Tutz (2012b). Variable selection for generalized linear mixed models by
+L1-penalized estimation. \emph{Statistics and Computing}. To appear.
+DOI: 10.1007/s11222-012-9359-z
 
 We are grateful to Jasmin Abedieh for providing the German Bundesliga data, which were part of her bachelor thesis.
 }
 \seealso{
-  \code{\link{glmmLasso}},\code{\link[GMMBoost]{bGLMM}},\code{\link[GMMBoost]{bGAMM}}.
+  \code{\link{glmmLasso}}, \code{\link[GMMBoost]{bGLMM}}, \code{\link[GMMBoost]{bGAMM}}.
 }
 \keyword{datasets}
