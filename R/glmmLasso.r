@@ -2249,13 +2249,14 @@ plot.glmmLasso <- function(x,which=NULL,plot.data=TRUE,include.icept=FALSE,...)
   nbasis<-x$nbasis
   diff.ord<-x$diff.ord
   spline.degree<-x$spline.degree
-  knots.no<-nbasis-(spline.degree-2)
   
+  knots.no<-nbasis-1
+  if(spline.degree<3 && (spline.degree-diff.ord)<2)
+    knots.no<-knots.no+1  
   
   spline.ma<-list()
   Design<-list()
   smooth.ma<-matrix(0,m,dim(Phi)[1])
-  #smootherror<-x$smootherror
   
   for(i in which)
   {
@@ -2267,13 +2268,10 @@ plot.glmmLasso <- function(x,which=NULL,plot.data=TRUE,include.icept=FALSE,...)
     data.seq<-seq(min(Phi[,i]),max(Phi[,i]),length.out=1000)  
     spline.ma[[i]]<-bs.design(data.seq, diff.ord=diff.ord, spline.degree=spline.degree, knots.no=knots.no)
     }
-#    smootherror[i,]<-x$smootherror[i,order(Phi[,i])]
     Design[[i]]<-cbind(spline.ma[[i]]$X[,-1],spline.ma[[i]]$Z)
     smooth.ma[i,]<-Design[[i]]%*%x$smooth[((i-1)*nbasis+1):(i*nbasis)]
   }
   
- # smoothlow<-smooth.ma-2*smootherror
-#  smoothupp<-smooth.ma+2*smootherror
   
   par(mfrow=c(a,b))
   
@@ -2289,9 +2287,6 @@ plot.glmmLasso <- function(x,which=NULL,plot.data=TRUE,include.icept=FALSE,...)
       data.seq<-seq(min(Phi[,i]),max(Phi[,i]),length.out=1000)    
       plot(data.seq, x$coef[match("(Intercept)",names(x$coef))]+smooth.ma[i,], type = "l", lwd=2, xlab=paste(colnames(Phi)[i]),ylab="",main=" ",cex.lab=2,cex.axis=2,...)
       }
-      #plot(sort(Phi[,i]), smooth.ma[i,], type = "l", lwd=2, xlab=paste(colnames(Phi)[i]),ylab="",main=" ",cex.lab=2,cex.axis=2,ylim=c(min(smoothlow[i,])-0.1*(max(smoothlow[i,])-min(smoothlow[i,])),max(smoothupp[i,])+0.1*(max(smoothlow[i,])-min(smoothlow[i,]))),...)
-       #lines(sort(Phi[,i]),smoothlow[i,], type = "l", lty=2, lwd=2,...)
-       #lines(sort(Phi[,i]),smoothupp[i,], type = "l", lty=2, lwd=2,...)
        rug(jitter(Phi[,i]))
     }else{
       if(plot.data)
@@ -2301,10 +2296,7 @@ plot.glmmLasso <- function(x,which=NULL,plot.data=TRUE,include.icept=FALSE,...)
       data.seq<-seq(min(Phi[,i]),max(Phi[,i]),length.out=1000)  
       plot(data.seq, smooth.ma[i,], type = "l", lwd=2, xlab=paste(colnames(Phi)[i]),ylab="",main=" ",cex.lab=2,cex.axis=2,...)
       }
-      #plot(sort(Phi[,i]), smooth.ma[i,], type = "l", lwd=2, xlab=paste(colnames(Phi)[i]),ylab="",main=" ",cex.lab=2,cex.axis=2,ylim=c(min(smoothlow[i,])-0.1*(max(smoothlow[i,])-min(smoothlow[i,])),max(smoothupp[i,])+0.1*(max(smoothlow[i,])-min(smoothlow[i,]))),...)
-      #lines(sort(Phi[,i]),smoothlow[i,], type = "l", lty=2, lwd=2,...)
-      #lines(sort(Phi[,i]),smoothupp[i,], type = "l", lty=2, lwd=2,...)
-      rug(jitter(Phi[,i]))
+       rug(jitter(Phi[,i]))
     }   
   }
 }

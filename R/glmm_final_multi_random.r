@@ -168,6 +168,8 @@ phi<-(sum((y-Mu)^2/Mu))/(N-sum(diag(FinalHat)))
 Sigma<-Sigma*phi
 }
 
+P1.old.temp<-P1
+
 if(all(s==1))
 {
   P1<-c(rep(0,lin),rep(diag(Q1)^(-1),n))
@@ -220,6 +222,9 @@ print(paste("Final Re-estimation Iteration ", l,sep=""))
 half.index<-0
 solve.test<-FALSE
 
+P1.old<-P1
+P1.old2<-P1.old.temp
+
 Delta_r<-InvFisher%*%score_vec
 ######### big while loop for testing if the update leads to Fisher matrix which can be inverted
 while(!solve.test)
@@ -228,6 +233,10 @@ while(!solve.test)
 solve.test2<-FALSE  
 while(!solve.test2)
 {  
+if(half.index>500)
+{
+half.index<-Inf;P1.old<-P1.old2
+}
 Delta[l,]<-Delta[l-1,]+nue*(0.5^half.index)*Delta_r
 
 Eta<-Z_alles%*%Delta[l,]
@@ -237,7 +246,7 @@ D<-as.vector(family$mu.eta(Eta))
 
 if (method=="EM" || overdispersion)
 {  
-  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1.old
   InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
   if(class(InvFisher)=="try-error")
     InvFisher<-try(solve(F_gross),silent=TRUE)  
@@ -333,6 +342,8 @@ FinalHat<-(Z_alles*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher%*%t(Z_alles*sqrt(D*1/Sig
 phi<-(sum((y-Mu)^2/Mu))/(N-sum(diag(FinalHat)))
 Sigma<-Sigma*phi
 }
+
+P1.old.temp<-P1.old
 
 if(all(s==1))
 {
