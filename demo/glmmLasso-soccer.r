@@ -8,7 +8,7 @@ soccer[,c(4,5,9:16)]<-scale(soccer[,c(4,5,9:16)],center=T,scale=T)
 soccer<-data.frame(soccer)
 
 
-lambda <- seq(0,200,by=1)
+lambda <- seq(500,0,by=-5)
 
 family = poisson(link = log)
 
@@ -26,8 +26,8 @@ print(paste("Iteration ", j,sep=""))
 glm1 <- try(glmmLasso(points~transfer.spendings  
         + ave.unfair.score + transfer.receits + ball.possession
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = family, data = soccer, lambda=lambda[j],
-        control = list(overdispersion=TRUE)),silent=TRUE)  
+        family = family, data = soccer, lambda=lambda[j],switch.NR=F,final.re=TRUE), silent=TRUE)  
+
 
 if(class(glm1)!="try-error")
 {  
@@ -36,13 +36,13 @@ BIC_vec[j]<-glm1$bic
         
 }
     
-opt<-match(min(BIC_vec),BIC_vec)
+opt<-which.min(BIC_vec)
         
 glm1_final <- glmmLasso(points~transfer.spendings  
         + ave.unfair.score + transfer.receits + ball.possession
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = family, data = soccer, lambda=lambda[opt],
-        control = list(overdispersion=TRUE)) 
+        family = family, data = soccer, lambda=lambda[opt],switch.NR=F,final.re=TRUE)
+         
   
         
 summary(glm1_final)
@@ -55,7 +55,7 @@ summary(glm1_final)
 ## Using 5-fold CV to determine the optimal tuning parameter lambda
 
 ### set seed
-set.seed(0815)
+set.seed(5)
 N<-dim(soccer)[1]
 ind<-sample(N,N)
 
@@ -84,8 +84,8 @@ soccer.test<-soccer[indi,]
 glm2 <- try(glmmLasso(points~transfer.spendings  
         + ave.unfair.score + transfer.receits + ball.possession
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = family, data = soccer.train, lambda=lambda[j],
-        control = list(overdispersion=TRUE)),silent=TRUE) 
+        family = family, data = soccer.train, lambda=lambda[j],switch.NR=F,final.re=TRUE)
+        ,silent=TRUE) 
         
     if(class(glm2)!="try-error")
     {  
@@ -93,19 +93,21 @@ glm2 <- try(glmmLasso(points~transfer.spendings
 
     Devianz_ma[j,i]<-sum(family$dev.resids(soccer.test$points,y.hat,wt=rep(1,length(y.hat))))
     }
-}}
+}
+print(sum(Devianz_ma[j,]))
+}
     
 Devianz_vec<-apply(Devianz_ma,1,sum)
-opt2<-match(min(Devianz_vec),Devianz_vec)
+opt2<-which.min(Devianz_vec)
        
        
 glm2_final <- glmmLasso(points~transfer.spendings  
-        + ave.unfair.score + transfer.receits + ball.possession
-        + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = family, data = soccer, lambda=lambda[opt2],
-        control = list(overdispersion=TRUE))  
-    
-        
+                        + ave.unfair.score + transfer.receits + ball.possession
+                        + tackles + ave.attend + sold.out, rnd = list(team=~1),  
+                        family = family, data = soccer, lambda=lambda[opt2],switch.NR=F,final.re=TRUE)
+
+
+
 summary(glm2_final)
 
 
@@ -116,45 +118,56 @@ summary(glm2_final)
 ## shrinked to zero;
 
 ## Using BIC (or AIC, respectively) to determine the optimal tuning parameter lambda
-lambda <- seq(200,0,by=-1)
+lambda <- seq(500,0,by=-5)
+
 
 BIC_vec<-rep(Inf,length(lambda))
 family = poisson(link = log)
 
 # specify starting values for the very first fit; pay attention that Delta.start has suitable length! 
-Delta.start<-as.matrix(t(rep(0,8+23)))   
+Delta.start<-as.matrix(t(rep(0,8+23)))
 Q.start<-0.1  
-phi.start<-1
 
 for(j in 1:length(lambda))
 {
   print(paste("Iteration ", j,sep=""))
   
-  glm3 <- glmmLasso(points~transfer.spendings  
-                    + ave.unfair.score + transfer.receits + tackles
+  glm3 <- glmmLasso(points~1 +transfer.spendings
+                    + ave.unfair.score 
+                    + transfer.receits
+                    + tackles  
                     + sold.out 
-                    + ball.possession+ ave.attend,
-                    rnd = list(team=~1),  
-                    family = family, data = soccer, lambda=lambda[j],
-                    control = list(overdispersion=TRUE,start=Delta.start[j,],
-                    q_start=Q.start[j],phi_start=phi.start[j]))  
+                    + ball.possession
+                    + ave.attend
+                    ,rnd = list(team=~1),  
+                    family = family, data = soccer, 
+                    lambda=lambda[j], switch.NR=F,final.re=TRUE,
+                    control = list(start=Delta.start[j,],q_start=Q.start[j]))  
   
+  print(colnames(glm3$Deltamatrix)[2:8][glm3$Deltamatrix[glm3$conv.step,2:8]!=0])
   BIC_vec[j]<-glm3$bic
   Delta.start<-rbind(Delta.start,glm3$Deltamatrix[glm3$conv.step,])
   Q.start<-c(Q.start,glm3$Q_long[[glm3$conv.step+1]])
-  phi.start<-c(phi.start,glm3$phi.med)
 }
 
-opt3<-match(min(BIC_vec),BIC_vec)
+opt3<-which.min(BIC_vec)
 
-glm3_final <- glmmLasso(points~transfer.spendings  
-                        + ave.unfair.score + transfer.receits + ball.possession
+glm3_final <- glmmLasso(points~transfer.spendings + ave.unfair.score 
+                        + transfer.receits + ball.possession
                         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
                         family = family, data = soccer, lambda=lambda[opt3],
-                        control = list(overdispersion=TRUE,start=Delta.start[opt3,],
-                        q_start=Q.start[opt3],phi_start=phi.start[opt3]))  
+                        switch.NR=F,final.re=TRUE,
+                        control = list(start=Delta.start[opt3,],q_start=Q.start[opt3]))  
 
 
 summary(glm3_final)
+
+## plot coefficient paths
+plot(lambda[1:length(lambda)],Delta.start[2:(length(lambda)+1),2],type="l",ylim=c(-1e-1,1e-1))
+lines(c(-1000,1000),c(0,0),lty=2)
+for(i in 3:8){
+  lines(lambda[1:length(lambda)],Delta.start[2:(length(lambda)+1),i])
+}
+
 
 

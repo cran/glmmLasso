@@ -42,6 +42,8 @@ P1[(lin+dim.smooth+(jf-1)*s[1]+1):(lin+dim.smooth+jf*s[1]),(lin+dim.smooth+(jf-1
 
 
 Delta<-matrix(0,steps,(lin+s%*%n))
+Eta.ma<-matrix(0,steps+1,N)
+Eta.ma[1,]<-Eta
 
 Q<-list()
 Q[[1]]<-q_start
@@ -162,9 +164,9 @@ Betadach<-Delta[1,1:(lin+dim.smooth)]
 
 Q[[2]]<-Q1
 
-if(overdispersion)# || complexity.hatmatrix)
+if(overdispersion)
 {  
-FinalHat<-(Z_alles*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher%*%t(Z_alles*sqrt(D*1/Sigma*D*1/Sigma))#E-Uu
+FinalHat<-(Z_alles*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher%*%t(Z_alles*sqrt(D*1/Sigma*D*1/Sigma))
 phi<-(sum((y-Mu)^2/Mu))/(N-sum(diag(FinalHat)))
 Sigma<-Sigma*phi
 }
@@ -210,6 +212,8 @@ if(class(InvFisher)=="try-error")
 
 y_dach<-as.vector(family$linkinv(Eta))
 Dev_neu<-sum(family$dev.resids(y,y_dach,wt=rep(1,N))^2)
+
+Eta.ma[2,]<-Eta
 
 ###############################################################################################################################################
 ################################################################### Boost ###################################################################
@@ -338,10 +342,11 @@ Q[[l+1]]<-Q1
 
 y_dach<-as.vector(family$linkinv(Eta))
 
+FinalHat<-(Z_alles*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher%*%t(Z_alles*sqrt(D*1/Sigma*D*1/Sigma))
+complexity<-sum(diag(FinalHat))
 if(overdispersion)
 {
-FinalHat<-(Z_alles*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher%*%t(Z_alles*sqrt(D*1/Sigma*D*1/Sigma))#E-Uu
-phi<-(sum((y-Mu)^2/Mu))/(N-sum(diag(FinalHat)))
+  phi<-(sum((y-Mu)^2/Mu))/(N-complexity)
 Sigma<-Sigma*phi
 }
 
@@ -381,21 +386,18 @@ if(class(InvFisher)=="try-error")
 }
 }
 
+Eta.ma[l+1,]<-Eta
 
-kritval<-sqrt(sum((Delta[l-1,]-Delta[l,])^2))/sqrt(sum(Delta[l-1,]^2))
-if(kritval<1e-6)
-break
+finish<-(sqrt(sum((Eta.ma[l,]-Eta.ma[l+1,])^2))/sqrt(sum((Eta.ma[l,])^2))<eps)
+finish2<-(sqrt(sum((Eta.ma[l-1,]-Eta.ma[l+1,])^2))/sqrt(sum((Eta.ma[l-1,])^2))<eps)
 
+if(finish ||  finish2) 
+  break
+}
 
-if(l>2)
-{
-kritval2<-sqrt(sum((Delta[l-2,]-Delta[l,])^2))/sqrt(sum(Delta[l-2,]^2))
+FinalHat<-(Z_alles*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher%*%t(Z_alles*sqrt(D*1/Sigma*D*1/Sigma))
+complexity<-sum(diag(FinalHat))
 
-if(kritval2<1e-6)
-break
-
-
-}}
 
 #print(paste("Final Iteration =", l,sep=""))
 
@@ -406,14 +408,37 @@ Q_final<-Q[[l+1]]
 
 Standard_errors<-sqrt(diag(InvFisher))
 
+## compute ranef part of loglik
+if(all(s==1))
+{
+  P1.ran<-rep(diag(Q_final)^(-1),n)
+  P1.ran<-diag(P1.ran)
+}else{
+  P1.ran<-matrix(0,n%*%s,n%*%s)
+  inv.act<-chol2inv(chol(Q_final[1:s[1],1:s[1]]))
+  for(jf in 1:n[1])
+    P1.ran[( (jf-1)*s[1]+1):( jf*s[1]),( (jf-1)*s[1]+1):( jf*s[1])]<-inv.act
+  
+  for (zu in 2:rnd.len)
+  {
+    inv.act<-chol2inv(chol(Q_final[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
+    for(jf in 1:n[zu])
+      P1.ran[( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
+             ( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-inv.act
+  }
+}
+
+ranef.logLik<--0.5*t(Deltafinal[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%P1.ran%*%Deltafinal[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
+
 #FinalHat<-(Z_alles*sqrt(D*1/Sigma*D))%*%Inv_F_opt%*%t(Z_alles*sqrt(D*1/Sigma*D))
 
 ret.obj=list()
+ret.obj$ranef.logLik<-ranef.logLik
 ret.obj$opt<-opt
 ret.obj$Delta<-Deltafinal
 ret.obj$Q<-Q_final
 ret.obj$Standard_errors<-Standard_errors
 ret.obj$phi<-phi
-#ret.obj$complexity<-sum(diag(FinalHat))
+ret.obj$complexity<-complexity
 return(ret.obj)
 }

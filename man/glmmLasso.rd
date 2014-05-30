@@ -11,14 +11,14 @@ Variable selection for generalized linear mixed models by
 L1-penalized estimation.
 }
 \details{
-The \code{glmmLasso} algorithm is a gradient ascent algorithm designed for generalized linear mixed models, which incorproates variable selection by L1-penalized estimation. In a final re-estimation step a model the includes only the variables corresponding to the non-zero fixed effects is fitted by simple Fisher scoring. For both the main algorithm as well as for the final re-estimation Fisher scoring 
+The \code{glmmLasso} algorithm is a gradient ascent algorithm designed for generalized linear mixed models, which incorporates variable selection by L1-penalized estimation. In a final re-estimation step a model the includes only the variables corresponding to the non-zero fixed effects is fitted by simple Fisher scoring. For both the main algorithm as well as for the final re-estimation Fisher scoring 
 two methods for the computation of the random-effects variance-covariance parameter estimates can be chosen, an EM-type estimate and an REML-type estimate.
 
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.2.2\cr
-Date: \tab 2013-11-18\cr
+Version: \tab 1.3.0\cr
+Date: \tab 2013-05-26\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -26,7 +26,8 @@ for loading a dataset type data(nameofdataset)
 }
 
 \usage{
-glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL, control = list())
+glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL, 
+          switch.NR=TRUE, final.re=FALSE, control = list())
 }     
 \arguments{
   \item{fix}{a two-sided linear formula object describing the
@@ -37,7 +38,7 @@ glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL, control = list(
   \item{rnd}{a two-sided linear formula object describing the
     random-effects part of the model, with the grouping factor on the left of a
     \code{~} operator and the random terms, separated by \code{+} operators, on
-    the right.}
+    the right; aternatively, the random effects design matrix can be given directly (with suitable column names).}
   \item{data}{the data frame containing the variables named in
     \code{formula}.}
   \item{lambda}{the penalty parameter that controls the shrinkage of fixed terms and controls the variable selection.
@@ -48,6 +49,8 @@ glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL, control = list(
     \code{\link[stats]{family}}. If \code{family} is missing then a
     linear mixed model is fit; otherwise a generalized linear mixed
     model is fit.}
+  \item{switch.NR}{logical. Should the algorithm swith to a Newton-Raphson update step, when reasonable? Default is FALSE.}
+  \item{final.re}{logical. Should the final Fisher scoring re-estimation be performed? Default is FALSE.}
   \item{control}{a list of control values for the estimation algorithm to replace the default values returned by the function \code{bGLMMControl}. Defaults to an empty list.}
 }
 \value{Generic functions such as \code{print}, \code{predict}, \code{plot} and \code{summary} have methods to show the results of the fit.
@@ -76,7 +79,7 @@ effects plus the number of random effects covariance parameters that have to be 
 
 
 \author{
-Andreas Groll
+Andreas Groll  \email{groll@math.lmu.de}
 }
 
 \references{
@@ -101,27 +104,31 @@ data("soccer")
 soccer[,c(4,5,9:16)]<-scale(soccer[,c(4,5,9:16)],center=TRUE,scale=TRUE)
 soccer<-data.frame(soccer)
 
-## linear mixed models
+## linear mixed model
 lm1 <- glmmLasso(points ~ transfer.spendings + ave.unfair.score 
        + transfer.receits + ball.possession + tackles 
        + ave.attend + sold.out, rnd = list(team=~1), 
-       lambda=200, data = soccer)
+       lambda=1e-4, data = soccer)
       
 summary(lm1)
 
+## linear mixed model with slope on ave.attend;  
+## the coefficient of ave.attend is not penalized;
 lm2 <- glmmLasso(points~transfer.spendings + ave.unfair.score 
        + transfer.receits + ball.possession + tackles + ave.attend 
-       + sold.out, rnd = list(team=~1 + ave.attend), lambda=200, 
+       + sold.out, rnd = list(team=~1 + ave.attend), lambda=1, 
        data = soccer, control = list(index=c(1,2,3,4,5,NA,6), 
        method="REML",method.final="REML",print.iter=TRUE))
 
 summary(lm2)
 
-## linear mixed models with categorical covariates
+## linear mixed model with categorical covariates
+## and final Fisher scoring re-estimation step
 lm3 <- glmmLasso(points ~ transfer.spendings + as.factor(red.card)  
        + as.factor(yellow.red.card) + transfer.receits + ball.possession
        + tackles + ave.attend + sold.out, rnd = list(team=~1), 
-       data = soccer, lambda=350,control = list(print.iter=TRUE))
+       data = soccer, lambda=160, final.re=TRUE,
+       control = list(print.iter=TRUE,print.iter.final=TRUE))
 
 summary(lm3)
 
@@ -129,7 +136,7 @@ summary(lm3)
 glm1 <- glmmLasso(points~transfer.spendings  
         + ave.unfair.score + transfer.receits + ball.possession
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = poisson(link = log), data = soccer, lambda=50,
+        family = poisson(link = log), data = soccer, lambda=0.1,
         control = list(overdispersion=TRUE,print.iter=TRUE)) 
 
 summary(glm1)
