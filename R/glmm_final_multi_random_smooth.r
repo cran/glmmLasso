@@ -40,6 +40,14 @@ P1[(lin+dim.smooth+(jf-1)*s[1]+1):(lin+dim.smooth+jf*s[1]),(lin+dim.smooth+(jf-1
      }
 }
 
+#if(s==1)
+#{
+#  P.smooth<-c(rep(0,lin),penal.vec,rep(0,n*rnd.len))
+#  P.smooth<-diag(P.smooth)
+#}else{
+#  P.smooth<-c(rep(0,lin),penal.vec,rep(0,n%*%s))
+#  P.smooth<-diag(P.smooth)
+#}
 
 Delta<-matrix(0,steps,(lin+s%*%n))
 Eta.ma<-matrix(0,steps+1,N)
@@ -51,7 +59,7 @@ Q[[1]]<-q_start
 l=1
 opt<-steps
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P.smooth%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
@@ -193,7 +201,7 @@ if(all(s==1))
   }
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P.smooth%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
@@ -372,7 +380,7 @@ if(all(s==1))
   }
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P.smooth%*%Delta[l,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)

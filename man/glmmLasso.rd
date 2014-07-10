@@ -17,8 +17,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.3.0\cr
-Date: \tab 2013-05-26\cr
+Version: \tab 1.3.1\cr
+Date: \tab 2013-07-10\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }

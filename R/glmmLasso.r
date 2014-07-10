@@ -1,4 +1,3 @@
-
 gradient.lasso.block<-function(score.beta,b,lambda.b,block)       
 {
   p<-length(b)
@@ -10,9 +9,11 @@ gradient.lasso.block<-function(score.beta,b,lambda.b,block)
     
   group.sum<-rep(0,length(block))
   group.sum[1]<-sqrt(sum(b[1:block[1]]^2))
+  if(length(block)>1)
+  {  
   for (i in 2:length(block))
     group.sum[i]<-sqrt(sum(b[(sum(block[1:(i-1)])+1):sum(block[1:i])]^2))
-  
+  }
   if(group.sum[1]!=0)
   {
     grad.lasso[1:block[1]]<-score.beta[1:block[1]]-lambda_vec[1]*(b[1:block[1]]/group.sum[1])
@@ -25,6 +26,8 @@ gradient.lasso.block<-function(score.beta,b,lambda.b,block)
       grad.lasso[1:block[1]]<-0
     }}
   
+  if(length(block)>1)
+  {  
   for (i in 2:length(block))
   {
     if(group.sum[i]!=0)
@@ -38,7 +41,7 @@ gradient.lasso.block<-function(score.beta,b,lambda.b,block)
       }else{
         grad.lasso[(sum(block[1:(i-1)])+1):sum(block[1:i])]<-0
       }}
-  }
+  }}
   return(grad.lasso)
 }
 
@@ -173,6 +176,8 @@ if(dim(X)[2]==1)
 }
 
 
+#browser()
+
 old.names<-attr(X,"dimnames")[[2]]
 
 
@@ -198,7 +203,8 @@ if(rnd.len==1)
     newrndfrml <- paste(newrndfrml,  
                         paste(sapply(attr(trmsrnd,"term.labels"), function(lbl){
                           paste(lbl, names(rnd)[1], sep=":")
-                        }), collapse=" + "), sep="+") }
+                        }), collapse=" + "), sep="+") 
+  }
   
   
   W_start <- model.matrix(formula(newrndfrml), data)
@@ -264,11 +270,19 @@ if(rnd.len==1)
 subject.names<-names(rnd)  
 }else{
   W<-rnd
+  if(!is.null(control$W.index))
+  {
+    s<-length(unique(control$W.index))
+    n<-ncol(W)/s
+  }else{
+    n<-ncol(W)
+    s<-1
+  }
+  
+  
   newrndfrml<-NULL  
   random.labels<-attr(W,"W.name")   
-  n<-ncol(W)
   k<-NULL
-  s<-1
   rnd.len <- 1
   attr(rnd,"names")<-colnames(rnd)
   subject.names<-colnames(rnd)  
@@ -894,7 +908,7 @@ if(control$steps!=1)
       {
         Delta[l,active]<-Delta[l-1,active]+nue*(0.5^half.index)*InvFisher%*%score_old[active]
         NRstep<-T
-        #print("NR-step!!!")
+ #       print("NR-step!!!")
        }else{
         Delta[l,]<-Delta[l-1,]+min(t_opt,t_edge)*nue*(0.5^half.index)*nue*score_vec
         if(t_opt>t_edge & half.index==0)
@@ -1663,8 +1677,26 @@ if(control$complexity!="hat.matrix")
   Q_inv.old.temp<-NULL
   Q_inv.start<-NULL
   
-  score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
+  #if(rnd.len==1)
+  #{
+  #  if(s==1)
+  #  {
+  #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n*s))
+  #  }else{
+  #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n%*%s))
+  #  }
+  #}else{
+  #  if(all(s==1))
+  #  {
+  #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,rnd.len*n))
+   # }else{
+  #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n%*%s))
+  #  }
+  #}
 
+  score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[1,])
+  lambda.max<-max(abs(score_vec[(q+1):lin]))
+  
   
   if (BLOCK)
   {
@@ -1932,8 +1964,9 @@ if(control$complexity!="hat.matrix")
     
   vorz<-F
     
-  score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-t(t(P1)*Delta[1,])
-
+  score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[1,])
+  lambda.max<-max(abs(score_vec2[(q+1):lin]))
+  
   score_old2<-score_vec2
   
   if (BLOCK)
@@ -2278,8 +2311,9 @@ while(!solve.test)
 
     Q[[l+1]]<-Q1
     
-    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
-
+    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[l,])
+    lambda.max<-max(abs(score_vec2[(q+1):lin]))
+    
     score_old2<-score_vec2
     
     if (BLOCK)
@@ -2733,6 +2767,7 @@ if(control$complexity!="hat.matrix")
   ret.obj$y <- y
   ret.obj$df<-df
   ret.obj$loglik<-loglik
+  ret.obj$lambda.max<-lambda.max
   return(ret.obj)
 }  
 
@@ -2745,6 +2780,8 @@ if(control$complexity!="hat.matrix")
   #######################################################################  
   if(is.null(control$smooth))
   {  
+    # browser()
+    
     if(lin>1)
     {
       Eta_start<-X%*%beta_null+W%*%ranef_null
@@ -2889,10 +2926,10 @@ if(control$complexity!="hat.matrix")
     Q[[1]]<-Q_start
     
     l=1
-    
-    
+        
     score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
     
+
     if (BLOCK)
     {
       grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
@@ -2972,6 +3009,8 @@ if(control$complexity!="hat.matrix")
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,n%*%s))
         Z_aktuell<-Z_alles[,active]
         lin_akt<-q+sum(!is.element(Delta[1,(q+1):lin],0))
+       
+        
         
         if (control$method=="EM" || control$overdispersion)
         {  
@@ -3021,8 +3060,8 @@ if(control$complexity!="hat.matrix")
       }
       
       betaact<-Delta[1,active]
-      
-      if (control$method=="EM")
+          
+    if (control$method=="EM")
       {   
         ############################# Q update ################
         if(rnd.len==1)
@@ -3757,6 +3796,8 @@ if(control$complexity!="hat.matrix")
     ##############################################################  
   }else{
     
+   # browser()
+    
     smooth<-control$smooth
     
     if(attr(terms(smooth$formula), "intercept")==0)
@@ -3844,6 +3885,7 @@ if(control$complexity!="hat.matrix")
     final.names<-c(colnames(X),colnames(U))
     
     q<-dim(X)[2]
+    
     
     Z_alles<-cbind(X,U,Phi,W)
     ########################################################## some definitions ################################################
@@ -3962,12 +4004,29 @@ if(control$complexity!="hat.matrix")
     k22<-rep(k2,m)
     penal.vec<-penal*k22
     
-    Q_inv<-NULL
-    Q_inv.old.temp<-NULL
-    Q_inv.start<-NULL
+     #if(rnd.len==1)
+    #{
+    #  if(s==1)
+    #  {
+    #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n*s))
+    #  }else{
+    #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n%*%s))
+    #  }
+    #}else{
+    #  if(all(s==1))
+    #  {
+    #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,rnd.len*n))
+    # }else{
+    #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n%*%s))
+    #  }
+    #}
     
-    score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
-
+   #browser()
+    
+    score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[1,])
+   
+    lambda.max<-max(abs(score_vec[q:lin]))
+   
     if (BLOCK)
     {
       grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
@@ -4040,6 +4099,7 @@ if(control$complexity!="hat.matrix")
         Delta[1,]<-Delta_start+min(t_opt,t_edge)*nue*(0.5^half.index)*score_vec
         if(t_opt>t_edge & half.index==0)
           Delta[1,crit.obj$whichmin+q]<-0  
+        
         Eta<-Z_alles%*%Delta[1,]
         Mu<-as.vector(family$linkinv(Eta))
         Sigma<-as.vector(family$variance(Mu))
@@ -4230,8 +4290,10 @@ if(control$complexity!="hat.matrix")
       
       vorz<-F
     
-    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
-    
+   # browser()
+    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[1,])
+    lambda.max<-max(abs(score_vec2[q:lin]))
+   
       if (BLOCK)
       {
         grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
@@ -4307,6 +4369,9 @@ if(control$complexity!="hat.matrix")
         if(control$print.iter)
           print(paste("Iteration ", l,sep=""))
         
+ 
+        
+        
         half.index<-0
 
         solve.test2<-FALSE  
@@ -4320,6 +4385,8 @@ if(control$complexity!="hat.matrix")
             
               Delta[l,]<-Delta[l-1,]+min(t_opt,t_edge)*nue*(0.5^half.index)*score_vec
               if(t_opt>t_edge & half.index==0)
+                Delta[l,crit.obj$whichmin+q]<-0
+            
             
             Eta<-Z_alles%*%Delta[l,]
             Mu<-as.vector(family$linkinv(Eta))
@@ -4498,7 +4565,10 @@ if(control$complexity!="hat.matrix")
           
           Q[[l+1]]<-Q1
           
-        score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
+        score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[l,])
+        score.pure<-score_vec2
+        lambda.max<-max(abs(score_vec2[(q+1):lin]))
+        
         
           if (BLOCK)
           {
@@ -4578,7 +4648,10 @@ if(control$complexity!="hat.matrix")
     
     conv.step<-l
     phi.med<-phi
-    
+
+   #browser()
+   
+   
     if(conv.step==control$steps)
     {
       cat("Warning:\n")
@@ -4880,6 +4953,8 @@ if(control$complexity!="hat.matrix")
     ret.obj$y <- y
     ret.obj$df<-df
     ret.obj$loglik<-loglik
+    ret.obj$lambda.max<-lambda.max
+ret.obj$score.pure<-score.pure
     return(ret.obj)
   }  
 }

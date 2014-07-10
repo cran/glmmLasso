@@ -31,6 +31,15 @@ for(jf in 1:n)
 P1[(lin+dim.smooth+(jf-1)*s+1):(lin+dim.smooth+jf*s),(lin+dim.smooth+(jf-1)*s+1):(lin+dim.smooth+jf*s)]<-chol2inv(chol(q_start))
 }
 
+#if(s==1)
+#{
+#  P.smooth<-c(rep(0,lin),penal.vec,rep(0,n*s))
+#  P.smooth<-diag(P.smooth)
+#}else{
+#  P.smooth<-c(rep(0,lin),penal.vec,rep(0,n%*%s))
+#  P.smooth<-diag(P.smooth)
+#}
+
 
 Delta<-matrix(0,steps,(lin+dim.smooth+s*n))
 Eta.ma<-matrix(0,steps+1,N)
@@ -43,7 +52,8 @@ Q[[1]]<-q_start
 l=1
 opt<-steps
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P.smooth%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 
@@ -60,6 +70,8 @@ half.index<-0
 solve.test<-FALSE
 Delta_r<-InvFisher%*%score_vec
 
+P1.old<-P1
+
 ######### big while loop for testing if the update leads to Fisher matrix which can be inverted
 while(!solve.test)
 {  
@@ -75,9 +87,10 @@ Mu<-as.vector(family$linkinv(Eta))
 Sigma<-as.vector(family$variance(Mu))
 D<-as.vector(family$mu.eta(Eta))
 
+
 if (method=="EM" || overdispersion)
 {  
-  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1.old
   InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
   if(class(InvFisher)=="try-error")
     InvFisher<-try(solve(F_gross),silent=TRUE)  
@@ -154,7 +167,7 @@ if(s==1)
        (lin+dim.smooth+(jf-1)*s+1):(lin+dim.smooth+jf*s)]<-chol2inv(chol(Q1))
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P.smooth%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
@@ -170,10 +183,11 @@ if(class(InvFisher)=="try-error")
 
 Eta.ma[2,]<-Eta
 
-P1.old.temp<-P1
+P1.old.temp<-P1.old
 ###############################################################################################################################################
 ################################################################### Main Iteration ###################################################################
 eps<-eps.final*sqrt(length(Delta_r))
+
 
 for (l in 2:steps)
 {
@@ -198,10 +212,8 @@ if(half.index>100)
 {
 half.index<-Inf;P1.old<-P1.old.temp
 }
-#D.old<-D
-#Sigma.old<-Sigma
-
 Delta[l,]<-Delta[l-1,]+nue*(0.5^half.index)*Delta_r
+
 Eta<-Z_alles%*%Delta[l,]
 Mu<-as.vector(family$linkinv(Eta))
 Sigma<-as.vector(family$variance(Mu))
@@ -272,7 +284,7 @@ for (ttt in 0:100)
 }}
 
 Q[[l+1]]<-Q1
-
+#print(Q1)
 
 if(overdispersion)
 {
@@ -294,7 +306,7 @@ if(s==1)
        (lin+dim.smooth+(jf-1)*s+1):(lin+dim.smooth+jf*s)]<-chol2inv(chol(Q1))
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P.smooth%*%Delta[l,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
@@ -447,3 +459,5 @@ ret.obj$EDF.matrix<-EDF.matrix
 ret.obj$complexity<-complexity
 return(ret.obj)
 }
+
+

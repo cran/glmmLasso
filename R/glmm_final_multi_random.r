@@ -49,7 +49,7 @@ Q[[1]]<-q_start
 l=1
 opt<-steps
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P1%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
@@ -191,7 +191,7 @@ if(all(s==1))
   }
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P1%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
@@ -371,7 +371,7 @@ if(all(s==1))
   }
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l-1,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P1%*%Delta[l-1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
   InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
