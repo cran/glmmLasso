@@ -1,4 +1,4 @@
-logLik.glmmLasso<-function (y,mu,beta=NULL,ranef.logLik=NULL,lambda=NULL,family,penal=FALSE) 
+logLik.glmmLasso<-function (y,mu,ranef.logLik=NULL,family,penal=FALSE) 
 {
   fam <- family$family
 
@@ -12,9 +12,7 @@ logLik.glmmLasso<-function (y,mu,beta=NULL,ranef.logLik=NULL,lambda=NULL,family,
   loglik<-sum(y*mu-0.5*(mu^2))
   
   if(penal)
-  {
-  lasso.penal<-lambda*sum(abs(beta))
-  loglik<-loglik+ranef.logLik+lasso.penal  
-  }
+  loglik<-loglik+ranef.logLik 
+
 return(loglik)
 }

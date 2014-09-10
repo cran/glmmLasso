@@ -4,6 +4,9 @@ data("soccer")
 ## grid for the smoothing parameter
 
 ## center all metric variables
+
+setwd("~/Dropbox/Gunther/glmmLasso/data/")
+load("soccer.rda")
 soccer[,c(4,5,9:16)]<-scale(soccer[,c(4,5,9:16)],center=T,scale=T)
 soccer<-data.frame(soccer)
 
@@ -18,15 +21,21 @@ family = poisson(link = log)
 
 BIC_vec<-rep(Inf,length(lambda))
 
+## first fit good starting model
+library(MASS)
+PQL<-glmmPQL(points~1,random = ~1|team,family=family,data=soccer)
+Delta.start<-c(as.numeric(fixef(PQL)[1]),rep(0,6),t(ranef(PQL)))
+Q.start<-as.numeric(VarCorr(PQL)[1,1])
 
 for(j in 1:length(lambda))
 {
 print(paste("Iteration ", j,sep=""))
   
 glm1 <- try(glmmLasso(points~transfer.spendings  
-        + ave.unfair.score + transfer.receits + ball.possession
+        + ave.unfair.score + ball.possession
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = family, data = soccer, lambda=lambda[j],switch.NR=F,final.re=TRUE), silent=TRUE)  
+        family = family, data = soccer, lambda=lambda[j],switch.NR=F,final.re=TRUE,
+        control=list(start=Delta.start,q_start=Q.start)), silent=TRUE)  
 
 
 if(class(glm1)!="try-error")
@@ -39,9 +48,10 @@ BIC_vec[j]<-glm1$bic
 opt<-which.min(BIC_vec)
         
 glm1_final <- glmmLasso(points~transfer.spendings  
-        + ave.unfair.score + transfer.receits + ball.possession
+        + ave.unfair.score + ball.possession
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = family, data = soccer, lambda=lambda[opt],switch.NR=F,final.re=TRUE)
+        family = family, data = soccer, lambda=lambda[opt],switch.NR=F,final.re=TRUE,
+        control=list(start=Delta.start,q_start=Q.start))
          
   
         
@@ -55,15 +65,21 @@ summary(glm1_final)
 ## Using 5-fold CV to determine the optimal tuning parameter lambda
 
 ### set seed
-set.seed(5)
+set.seed(123)
 N<-dim(soccer)[1]
 ind<-sample(N,N)
+lambda <- seq(500,0,by=-20)
 
 kk<-5
 nk <- floor(N/kk)
 
 Devianz_ma<-matrix(Inf,ncol=kk,nrow=length(lambda))
 
+## first fit good starting model
+library(MASS)
+PQL<-glmmPQL(points~1,random = ~1|team,family=family,data=soccer)
+Delta.start<-c(as.numeric(fixef(PQL)[1]),rep(0,6),t(ranef(PQL)))
+Q.start<-as.numeric(VarCorr(PQL)[1,1])
 
 for(j in 1:length(lambda))
 {
@@ -82,9 +98,10 @@ soccer.train<-soccer[-indi,]
 soccer.test<-soccer[indi,]
   
 glm2 <- try(glmmLasso(points~transfer.spendings  
-        + ave.unfair.score + transfer.receits + ball.possession
+        + ave.unfair.score  + ball.possession
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = family, data = soccer.train, lambda=lambda[j],switch.NR=F,final.re=TRUE)
+        family = family, data = soccer.train, lambda=lambda[j],switch.NR=F,final.re=TRUE,
+        control=list(start=Delta.start,q_start=Q.start))
         ,silent=TRUE) 
         
     if(class(glm2)!="try-error")
@@ -102,9 +119,10 @@ opt2<-which.min(Devianz_vec)
        
        
 glm2_final <- glmmLasso(points~transfer.spendings  
-                        + ave.unfair.score + transfer.receits + ball.possession
+                        + ave.unfair.score + ball.possession
                         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-                        family = family, data = soccer, lambda=lambda[opt2],switch.NR=F,final.re=TRUE)
+                        family = family, data = soccer, lambda=lambda[opt2],switch.NR=F,final.re=TRUE,
+                        control=list(start=Delta.start,q_start=Q.start))
 
 
 
@@ -125,7 +143,7 @@ BIC_vec<-rep(Inf,length(lambda))
 family = poisson(link = log)
 
 # specify starting values for the very first fit; pay attention that Delta.start has suitable length! 
-Delta.start<-as.matrix(t(rep(0,8+23)))
+Delta.start<-as.matrix(t(rep(0,7+23)))
 Q.start<-0.1  
 
 for(j in 1:length(lambda))
@@ -134,7 +152,6 @@ for(j in 1:length(lambda))
   
   glm3 <- glmmLasso(points~1 +transfer.spendings
                     + ave.unfair.score 
-                    + transfer.receits
                     + tackles  
                     + sold.out 
                     + ball.possession
@@ -144,7 +161,7 @@ for(j in 1:length(lambda))
                     lambda=lambda[j], switch.NR=F,final.re=TRUE,
                     control = list(start=Delta.start[j,],q_start=Q.start[j]))  
   
-  print(colnames(glm3$Deltamatrix)[2:8][glm3$Deltamatrix[glm3$conv.step,2:8]!=0])
+  print(colnames(glm3$Deltamatrix)[2:7][glm3$Deltamatrix[glm3$conv.step,2:7]!=0])
   BIC_vec[j]<-glm3$bic
   Delta.start<-rbind(Delta.start,glm3$Deltamatrix[glm3$conv.step,])
   Q.start<-c(Q.start,glm3$Q_long[[glm3$conv.step+1]])
@@ -153,7 +170,7 @@ for(j in 1:length(lambda))
 opt3<-which.min(BIC_vec)
 
 glm3_final <- glmmLasso(points~transfer.spendings + ave.unfair.score 
-                        + transfer.receits + ball.possession
+                        + ball.possession
                         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
                         family = family, data = soccer, lambda=lambda[opt3],
                         switch.NR=F,final.re=TRUE,
@@ -163,11 +180,11 @@ glm3_final <- glmmLasso(points~transfer.spendings + ave.unfair.score
 summary(glm3_final)
 
 ## plot coefficient paths
-plot(lambda[1:length(lambda)],Delta.start[2:(length(lambda)+1),2],type="l",ylim=c(-1e-1,1e-1))
+plot(lambda,Delta.start[2:(length(lambda)+1),2],type="l",ylim=c(-1e-11,1e-11))
 lines(c(-1000,1000),c(0,0),lty=2)
-for(i in 3:8){
+for(i in 3:7){
   lines(lambda[1:length(lambda)],Delta.start[2:(length(lambda)+1),i])
 }
-
+abline(v=lambda[opt3],lty=2)
 
 

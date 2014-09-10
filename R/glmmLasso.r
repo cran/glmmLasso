@@ -1,3 +1,14 @@
+taylor.opt<-function(t_opt,y,X,fixef,ranef,Grad,family,P)
+{
+  delta<-c(fixef,ranef)+t_opt*Grad
+  Eta<- X%*%delta
+  mu<-as.vector(family$linkinv(Eta))
+  loglik<--(sum(log(mu[y==1]))+sum(log((1-mu)[y==0])))+0.5*t(delta[(length(fixef)+1):length(delta)])%*%P%*%delta[(length(fixef)+1):length(delta)]
+  return(loglik)
+}
+
+
+
 gradient.lasso.block<-function(score.beta,b,lambda.b,block)       
 {
   p<-length(b)
@@ -71,13 +82,13 @@ t.change<-function(grad,b)
   return(ret.obj)
 }
 
-l2norm<-function(vec)
-{
-  l2length<-sqrt(sum(vec^2))
-  if(l2length>0){vec.norm<-vec/l2length}
-  if(l2length==0){vec.norm<-vec}
-  return(list("length"=l2length,"normed"=vec.norm))
-}                
+#l2norm<-function(vec)
+#{
+#  l2length<-sqrt(sum(vec^2))
+#  if(l2length>0){vec.norm<-vec/l2length}
+#  if(l2length==0){vec.norm<-vec}
+#  return(list("length"=l2length,"normed"=vec.norm))
+#}                
 
 
 #############################################################################################################################################               
@@ -166,6 +177,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
   X <- model.matrix(fix, data)  
 }
 
+
 if(any(fac.variab))
   X[,fac.variab]<-scale(X[,fac.variab])
 
@@ -176,7 +188,6 @@ if(dim(X)[2]==1)
 }
 
 
-#browser()
 
 old.names<-attr(X,"dimnames")[[2]]
 
@@ -314,8 +325,8 @@ q_start<-control$q_start
 
 N<-length(y)
 
-
 beta_null<-control$start[1:lin]
+if(is.null(attr(beta_null,"names")))
 attr(beta_null,"names")<-orig.names
 beta_null<-beta_null[colnames(X)]
 
@@ -342,6 +353,7 @@ if(is.null(control$smooth))
   }else{
     Eta_start<-rep(beta_null,N)+W%*%ranef_null
   }
+  
   
   D<-as.vector(family$mu.eta(Eta_start))
   Mu<-as.vector(family$linkinv(Eta_start))
@@ -389,6 +401,7 @@ if(is.null(control$smooth))
   Eta.ma<-matrix(0,control$steps+1,N)
   Eta.ma[1,]<-Eta_start
   
+  logLik.vec<-c()
   
   control$epsilon<-control$epsilon*sqrt(dim(Delta)[2])
   
@@ -485,23 +498,12 @@ if(is.null(control$smooth))
   
   l=1
   
-  
-  score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
-  
-  if (BLOCK)
-  {
-    grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
-  }else{
-    grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
-  }
-  
-  score_vec<-c(score_vec[1:q],grad.1,score_vec[(lin+1):(lin+n%*%s)])
-  
   if(rnd.len==1)
   {
     if(s==1)
     {
       P1<-c(rep(0,lin),rep((Q_start^(-1)),n*s))
+      P1<-diag(P1)
     }else{
       Q_inv.start<-chol2inv(chol(Q_start))
       P1<-matrix(0,lin+n%*%s,lin+n%*%s)
@@ -512,6 +514,7 @@ if(is.null(control$smooth))
     if(all(s==1))
     {
       P1<-c(rep(0,lin),rep(diag(Q_start)^(-1),n))
+      P1<-diag(P1)
     }else{
       Q_inv.start<-list()
       Q_inv.start[[1]]<-chol2inv(chol(Q_start[1:s[1],1:s[1]]))
@@ -529,20 +532,35 @@ if(is.null(control$smooth))
     }
   }
   
-  if(all(s==1))
+  score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+  lambda.max<-max(abs(score_vec[(q+1):lin]))
+  
+  if (BLOCK)
   {
-    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+    grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
   }else{
-    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+    grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
   }
   
+  score_vec<-c(score_vec[1:q],grad.1,score_vec[(lin+1):(lin+n%*%s)])
+  
+  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
   
   crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
   t_edge<-crit.obj$min.rate
   
   grad.2<-t(score_vec)%*%F_gross%*%score_vec
   
-  t_opt<-l2norm(score_vec)$length/grad.2
+  #t_opt<-l2norm(score_vec)$length/grad.2
+  
+  ranef.logLik<- -0.5*t(Delta_start[(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta_start[(lin+1):(lin+n%*%s)]
+  
+  optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
+                    Grad=score_vec,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
+                    lower = 0, upper = Inf)
+  
+  t_opt<-optim.obj$par
+  
   nue<-control$nue
 
   
@@ -569,6 +587,10 @@ if(is.null(control$smooth))
   Sigma<-as.vector(family$variance(Mu))
   D<-as.vector(family$mu.eta(Eta))
   
+  ranef.logLik<- -0.5*t(Delta[1,(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta[1,(lin+1):(lin+n%*%s)]
+  
+  logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T)
+
   active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,n%*%s))
   Z_aktuell<-Z_alles[,active]
   lin_akt<-q+sum(!is.element(Delta[1,(q+1):lin],0))
@@ -749,24 +771,12 @@ if(is.null(control$smooth))
  
   vorz<-F
 
-  score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
- 
-  score_old2<-score_vec2
- 
- if (BLOCK)
- {
-   grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
- }else{
-   grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
- }
- score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+n%*%s)])
- 
-
  if(rnd.len==1)
  {
    if(s==1)
    {
      P1<-c(rep(0,lin),rep((Q1^(-1)),n*s))
+     P1<-diag(P1)
    }else{
      Q_inv<-solve(Q1)
      P1<-matrix(0,lin+n%*%s,lin+n%*%s)
@@ -777,6 +787,7 @@ if(is.null(control$smooth))
    if(all(s==1))
    {
      P1<-c(rep(0,lin),rep(diag(Q1)^(-1),n))
+     P1<-diag(P1)
    }else{
      Q_inv<-list()
      Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
@@ -794,20 +805,34 @@ if(is.null(control$smooth))
    }
  }
  
+ score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+ lambda.max<-max(abs(score_vec2[(q+1):lin]))
  
- if(all(s==1))
+  score_old2<-score_vec2
+ 
+ if (BLOCK)
  {
-   F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+   grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
  }else{
-   F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+   grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
  }
+ score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+n%*%s)])
+ 
+ F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
  
  crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
  t_edge<-crit.obj$min.rate
  
  grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
  
- t_opt<-l2norm(score_vec2)$length/grad.2
+ #t_opt<-l2norm(score_vec2)$length/grad.2
+ 
+ optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
+                   Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
+                   lower = 0, upper = Inf)
+ 
+ t_opt<-optim.obj$par
+ 
  tryNR<- (t_opt<t_edge) #&& !(all(active_old==active)  && !NRstep)  
  
  if(tryNR) 
@@ -921,6 +946,10 @@ if(control$steps!=1)
       Sigma<-as.vector(family$variance(Mu))
       D<-as.vector(family$mu.eta(Eta))
       
+      ranef.logLik<- -0.5*t(Delta[l,(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta[l,(lin+1):(lin+n%*%s)]
+ 
+      logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T)
+ 
       active_old<-active
       active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,n%*%s))
       Z_aktuell<-Z_alles[,active]
@@ -1086,8 +1115,43 @@ if(control$steps!=1)
       
       Q[[l+1]]<-Q1
             
-    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
-    
+       if(rnd.len==1)
+       {
+         if(s==1)
+         {
+           P1<-c(rep(0,lin),rep((Q1^(-1)),n*s))
+           P1<-diag(P1)
+         }else{
+           Q_inv<-solve(Q1)
+           P1<-matrix(0,lin+n%*%s,lin+n%*%s)
+           for(j in 1:n)
+             P1[(lin+(j-1)*s+1):(lin+j*s),(lin+(j-1)*s+1):(lin+j*s)]<-Q_inv
+         }
+       }else{
+         if(all(s==1))
+         {
+           P1<-c(rep(0,lin),rep(diag(Q1)^(-1),n))
+           P1<-diag(P1)
+         }else{
+           Q_inv<-list()
+           Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
+           P1<-matrix(0,lin+n%*%s,lin+n%*%s)
+           for(jf in 1:n[1])
+             P1[(lin+(jf-1)*s[1]+1):(lin+jf*s[1]),(lin+(jf-1)*s[1]+1):(lin+jf*s[1])]<-Q_inv[[1]]
+           
+           for (zu in 2:rnd.len)
+           {
+             Q_inv[[zu]]<-chol2inv(chol(Q1[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
+             for(jf in 1:n[zu])
+               P1[(lin+n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):(lin+n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
+                  (lin+n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):(lin+n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-Q_inv[[zu]]
+           }
+         }
+       }
+       
+   score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l,]
+   lambda.max<-max(abs(score_vec2[(q+1):lin]))
+ 
    score_old2<-score_vec2
 
  if (BLOCK)
@@ -1098,52 +1162,22 @@ if(control$steps!=1)
  }
  score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+n%*%s)])
  
- if(rnd.len==1)
- {
-   if(s==1)
-   {
-     P1<-c(rep(0,lin),rep((Q1^(-1)),n*s))
-   }else{
-     Q_inv<-solve(Q1)
-     P1<-matrix(0,lin+n%*%s,lin+n%*%s)
-     for(j in 1:n)
-       P1[(lin+(j-1)*s+1):(lin+j*s),(lin+(j-1)*s+1):(lin+j*s)]<-Q_inv
-   }
- }else{
-   if(all(s==1))
-   {
-     P1<-c(rep(0,lin),rep(diag(Q1)^(-1),n))
-   }else{
-     Q_inv<-list()
-     Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
-     P1<-matrix(0,lin+n%*%s,lin+n%*%s)
-     for(jf in 1:n[1])
-       P1[(lin+(jf-1)*s[1]+1):(lin+jf*s[1]),(lin+(jf-1)*s[1]+1):(lin+jf*s[1])]<-Q_inv[[1]]
-     
-     for (zu in 2:rnd.len)
-     {
-       Q_inv[[zu]]<-chol2inv(chol(Q1[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
-       for(jf in 1:n[zu])
-         P1[(lin+n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):(lin+n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
-            (lin+n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):(lin+n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-Q_inv[[zu]]
-     }
-   }
- }
  
- 
- if(all(s==1))
- {
-   F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
- }else{
    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
- }
  
  crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
  t_edge<-crit.obj$min.rate
 
  grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
  
- t_opt<-l2norm(score_vec2)$length/grad.2
+# t_opt<-l2norm(score_vec2)$length/grad.2
+
+    optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
+                     Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
+                     lower = 0, upper = Inf)
+
+    t_opt<-optim.obj$par
+
  tryNR<- (t_opt<t_edge) && !(all(active_old==active)  && !NRstep)  
  
  if(tryNR) 
@@ -1222,6 +1256,7 @@ if(control$steps!=1)
     Eta.old<-Eta
 }}
 
+
 FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
 df<-sum(diag(FinalHat.df))
 
@@ -1243,40 +1278,6 @@ if(conv.step==control$steps)
   D_opt<-as.vector(family$mu.eta(Eta_opt))
   Qfinal<-Q[[l+1]]
   
-if(rnd.len==1)
-{
-  if(s==1)
-  {
-    P1.ran<-rep((Qfinal^(-1)),n*s)
-    P1.ran<-diag(P1.ran)
-  }else{
-    P1.ran<-matrix(0,n*s,n*s)
-    for(jf in 1:n)
-      P1.ran[((jf-1)*s+1):(jf*s),((jf-1)*s+1):(jf*s)]<-chol2inv(chol(Qfinal))
-  }
-}else{
-  if(all(s==1))
-  {
-    P1.ran<-rep(diag(Qfinal)^(-1),n)
-    P1.ran<-diag(P1.ran)
-  }else{
-    P1.ran<-matrix(0,n%*%s,n%*%s)
-    inv.act<-chol2inv(chol(Qfinal[1:s[1],1:s[1]]))
-    for(jf in 1:n[1])
-      P1.ran[( (jf-1)*s[1]+1):( jf*s[1]),( (jf-1)*s[1]+1):( jf*s[1])]<-inv.act
-  
-    for (zu in 2:rnd.len)
-    {
-      inv.act<-chol2inv(chol(Qfinal[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
-      for(jf in 1:n[zu])
-        P1.ran[( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
-               ( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-inv.act
-    }
-  }
-}
-ranef.logLik<--0.5*t(Delta_neu[(lin+1):(lin+n%*%s)])%*%P1.ran%*%Delta_neu[(lin+1):(lin+n%*%s)]
-
-
 if(final.re)
 {    
 ############ final re-estimation
@@ -1297,14 +1298,14 @@ if(final.re)
                              Delta_start=Delta_neu[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                              family=family,method=control$method.final,overdispersion=control$overdispersion,
                              phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
-                             Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))#,silent = TRUE)
+                             Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
     if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
     {  
     glmm_fin2<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=q_start,
                              Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                              family=family,method=control$method.final,overdispersion=control$overdispersion,
                              phi=control$phi,print.iter.final=control$print.iter.final,
-                             eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))
+                             eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
         if(class(glmm_fin2)!="try-error")
         {    
           if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -1316,14 +1317,14 @@ if(final.re)
                               Delta_start=Delta_neu[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                               family=family,method=control$method.final,overdispersion=control$overdispersion,
                               phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
-                              eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))#,silent = TRUE)
+                              eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
     if(class(glmm_fin)=="try-error"|| glmm_fin$opt>control$maxIter-10)
     {  
     glmm_fin2<-try(glmm_final_multi_random(y,Z_fastalles[,aaa],W,k,q_start=q_start,
                               Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                               family=family,method=control$method.final,overdispersion=control$overdispersion,
                               phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
-                              eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))    
+                              eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)    
         if(class(glmm_fin2)!="try-error")
         {    
           if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -1413,8 +1414,7 @@ class(glmm_fin)<-"try-error"
 if (is.element(family$family,c("gaussian", "binomial", "poisson"))) 
 {
 
-  loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,beta=Delta_neu[(q+1):(lin)],ranef.logLik=glmm_fin$ranef.logLik,
-                           lambda=lambda,family=family,penal=FALSE)
+  loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T)
   
 
 if(control$complexity!="hat.matrix")  
@@ -1460,6 +1460,8 @@ if(control$complexity!="hat.matrix")
   ret.obj$y <- y
   ret.obj$df<-df
   ret.obj$loglik<-loglik
+  ret.obj$lambda.max<-lambda.max
+  ret.obj$logLik.vec<-logLik.vec
   return(ret.obj)
 ##############################################################  
 ######################## 2. Smooth ###########################  
@@ -1565,6 +1567,8 @@ if(control$complexity!="hat.matrix")
   
   Delta_start<-Delta[1,]
   
+  logLik.vec<-c()
+  
   active_old<-!is.element(Delta[1,],0)
 
   Eta.ma<-matrix(0,control$steps+1,N)
@@ -1656,9 +1660,6 @@ if(control$complexity!="hat.matrix")
   }
   
   
-  
-  
-  
   Q<-list()
   Q[[1]]<-Q_start
   
@@ -1694,24 +1695,12 @@ if(control$complexity!="hat.matrix")
   #  }
   #}
 
-  score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[1,])
-  lambda.max<-max(abs(score_vec[(q+1):lin]))
-  
-  
-  if (BLOCK)
-  {
-    grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
-  }else{
-    grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
-  }
-  
-  score_vec<-c(score_vec[1:q],grad.1,score_vec[(lin+1):(lin+dim.smooth+n%*%s)])
-  
   if(rnd.len==1)
   {
     if(s==1)
     {
       P1<-c(rep(0,lin),penal.vec,rep((Q_start^(-1)),n*s))
+      P1<-diag(P1)
     }else{
       Q_inv.start<-chol2inv(chol(Q_start))
       P1<-matrix(0,lin+dim.smooth+n%*%s,lin+dim.smooth+n%*%s)
@@ -1723,6 +1712,7 @@ if(control$complexity!="hat.matrix")
     if(all(s==1))
     {
       P1<-c(rep(0,lin),penal.vec,rep(diag(Q_start)^(-1),n))
+      P1<-diag(P1)
     }else{
       Q_inv.start<-list()
       Q_inv.start[[1]]<-chol2inv(chol(Q_start[1:s[1],1:s[1]]))
@@ -1741,19 +1731,36 @@ if(control$complexity!="hat.matrix")
     }
   }
 
-  if(all(s==1))
+  score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+  lambda.max<-max(abs(score_vec[(q+1):lin]))
+  
+  
+  if (BLOCK)
   {
-    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+    grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
   }else{
-    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+    grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
   }
+  
+  score_vec<-c(score_vec[1:q],grad.1,score_vec[(lin+1):(lin+dim.smooth+n%*%s)])
+  
+  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
   
   crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
   t_edge<-crit.obj$min.rate
   
   grad.2<-t(score_vec)%*%F_gross%*%score_vec
   
-  t_opt<-l2norm(score_vec)$length/grad.2
+#  t_opt<-l2norm(score_vec)$length/grad.2
+
+  ranef.logLik<- -0.5*t(Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
+  
+  optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+                    Grad=score_vec,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
+                    lower = 0, upper = Inf)
+  
+  t_opt<-optim.obj$par
+  
   nue<-control$nue
 
   half.index<-0
@@ -1779,6 +1786,10 @@ if(control$complexity!="hat.matrix")
   Sigma<-as.vector(family$variance(Mu))
   D<-as.vector(family$mu.eta(Eta))
   
+  ranef.logLik<- -0.5*t(Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
+  
+  logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T)
+
   active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
   Z_aktuell<-Z_alles[,active]
   lin_akt<-q+sum(!is.element(Delta[1,(q+1):lin],0))
@@ -1964,24 +1975,12 @@ if(control$complexity!="hat.matrix")
     
   vorz<-F
     
-  score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[1,])
-  lambda.max<-max(abs(score_vec2[(q+1):lin]))
-  
-  score_old2<-score_vec2
-  
-  if (BLOCK)
-  {
-    grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
-  }else{
-    grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
-  }
-  score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+dim.smooth+n%*%s)])
-  
   if(rnd.len==1)
   {
     if(s==1)
     {
       P1<-c(rep(0,lin),penal.vec,rep((Q1^(-1)),n*s))
+      P1<-diag(P1)
     }else{
       Q_inv<-chol2inv(chol(Q1))
       Q_inv.old.temp<-Q_inv
@@ -1994,6 +1993,7 @@ if(control$complexity!="hat.matrix")
     if(all(s==1))
     {
       P1<-c(rep(0,lin),penal.vec,rep(diag(Q1)^(-1),n))
+      P1<-diag(P1)
     }else{
       Q_inv<-list()
       Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
@@ -2011,20 +2011,35 @@ if(control$complexity!="hat.matrix")
       }
     }
   }
+
+  score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+  lambda.max<-max(abs(score_vec2[(q+1):lin]))
   
-  if(all(s==1))
+  score_old2<-score_vec2
+  
+  if (BLOCK)
   {
-    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+    grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
   }else{
-    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+    grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
   }
+  score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+dim.smooth+n%*%s)])
+  
+  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
   
   crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
   t_edge<-crit.obj$min.rate
   
   grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
   
-  t_opt<-l2norm(score_vec2)$length/grad.2
+  #t_opt<-l2norm(score_vec2)$length/grad.2
+  
+  optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+                    Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
+                    lower = 0, upper = Inf)
+  
+  t_opt<-optim.obj$par
+  
   tryNR<- (t_opt<t_edge) #&& !(all(active_old==active)  && !NRstep)
   
   if(tryNR) 
@@ -2102,6 +2117,8 @@ if(control$steps!=1)
 {
   for (l in 2:control$steps)
   {
+    
+    
     if(control$print.iter)
       print(paste("Iteration ", l,sep=""))
       
@@ -2138,6 +2155,10 @@ while(!solve.test)
       Mu<-as.vector(family$linkinv(Eta))
       Sigma<-as.vector(family$variance(Mu))
       D<-as.vector(family$mu.eta(Eta))
+      
+      ranef.logLik<- -0.5*t(Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
+      
+      logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T)
       
       active_old<-active
       active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
@@ -2311,24 +2332,12 @@ while(!solve.test)
 
     Q[[l+1]]<-Q1
     
-    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[l,])
-    lambda.max<-max(abs(score_vec2[(q+1):lin]))
-    
-    score_old2<-score_vec2
-    
-    if (BLOCK)
-    {
-      grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda,block=block)
-    }else{
-      grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda)
-    }
-    score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+dim.smooth+n%*%s)])
-    
     if(rnd.len==1)
     {
       if(s==1)
       {
         P1<-c(rep(0,lin),penal.vec,rep((Q1^(-1)),n*s))
+        P1<-diag(P1)
       }else{
         Q_inv<-chol2inv(chol(Q1))
         P1<-matrix(0,lin+dim.smooth+n%*%s,lin+dim.smooth+n%*%s)
@@ -2340,6 +2349,7 @@ while(!solve.test)
       if(all(s==1))
       {
         P1<-c(rep(0,lin),penal.vec,rep(diag(Q1)^(-1),n))
+        P1<-diag(P1)
       }else{
         Q_inv<-list()
         Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
@@ -2357,20 +2367,35 @@ while(!solve.test)
         }
       }
     }
+
+    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l,]
+    lambda.max<-max(abs(score_vec2[(q+1):lin]))
     
-    if(all(s==1))
+    score_old2<-score_vec2
+    
+    if (BLOCK)
     {
-      F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+      grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda,block=block)
     }else{
-      F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+      grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda)
     }
+    score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+dim.smooth+n%*%s)])
+    
+    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
     
     crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
     t_edge<-crit.obj$min.rate
     
     grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
     
-    t_opt<-l2norm(score_vec2)$length/grad.2
+    #t_opt<-l2norm(score_vec2)$length/grad.2
+    
+    optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+                      Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
+                      lower = 0, upper = Inf)
+    
+    t_opt<-optim.obj$par
+    
     tryNR<- (t_opt<t_edge) && !(all(active_old==active)  && !NRstep)
     
     if(tryNR) 
@@ -2477,40 +2502,6 @@ while(!solve.test)
   
   aaa<-!is.element(Delta_neu[1:(lin)],0)
 
-if(rnd.len==1)
-{
-  if(s==1)
-  {
-    P1.ran<-rep((Qfinal^(-1)),n*s)
-    P1.ran<-diag(P1.ran)
-  }else{
-    P1.ran<-matrix(0,n*s,n*s)
-    for(jf in 1:n)
-      P1.ran[((jf-1)*s+1):(jf*s),((jf-1)*s+1):(jf*s)]<-chol2inv(chol(Qfinal))
-  }
-}else{
-  if(all(s==1))
-  {
-    P1.ran<-rep(diag(Qfinal)^(-1),n)
-    P1.ran<-diag(P1.ran)
-  }else{
-    P1.ran<-matrix(0,n%*%s,n%*%s)
-    inv.act<-chol2inv(chol(Qfinal[1:s[1],1:s[1]]))
-    for(jf in 1:n[1])
-      P1.ran[( (jf-1)*s[1]+1):( jf*s[1]),( (jf-1)*s[1]+1):( jf*s[1])]<-inv.act
-    
-    for (zu in 2:rnd.len)
-    {
-      inv.act<-chol2inv(chol(Qfinal[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
-      for(jf in 1:n[zu])
-        P1.ran[( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
-               ( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-inv.act
-    }
-  }  
-}  
-
-ranef.logLik<--0.5*t(Delta_neu[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%P1.ran%*%Delta_neu[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
-
 
 if(final.re)
 {    
@@ -2532,14 +2523,14 @@ if(final.re)
                       Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth+n%*%s))],
                       s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                       phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
-                      Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))#,silent = TRUE)
+                      Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
     if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
     {  
       glmm_fin2<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=q_start,
                       Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                       s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                       phi=control$phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
-                      Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))
+                      Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
         if(class(glmm_fin2)!="try-error")
         {    
           if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -2551,14 +2542,14 @@ if(final.re)
                     Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth+n%*%s))],
                     s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                     phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
-                    Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))#,silent = TRUE)
+                    Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
     if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
     {  
       glmm_fin2<-try(glmm_final_multi_random_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=q_start,
                     Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                     s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                     phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
-                    eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))
+                    eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
         if(class(glmm_fin2)!="try-error")
         {    
           if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -2716,8 +2707,7 @@ if(final.re)
   
 if (is.element(family$family,c("gaussian", "binomial", "poisson"))) 
 {
-    loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,beta=Delta_neu[(q+1):(lin)],ranef.logLik=glmm_fin$ranef.logLik,
-                             lambda=lambda,family=family,penal=FALSE)
+    loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T)
 
 if(control$complexity!="hat.matrix")  
 {  
@@ -2768,6 +2758,7 @@ if(control$complexity!="hat.matrix")
   ret.obj$df<-df
   ret.obj$loglik<-loglik
   ret.obj$lambda.max<-lambda.max
+  ret.obj$logLik.vec<-logLik.vec
   return(ret.obj)
 }  
 
@@ -2780,8 +2771,8 @@ if(control$complexity!="hat.matrix")
   #######################################################################  
   if(is.null(control$smooth))
   {  
-    # browser()
     
+
     if(lin>1)
     {
       Eta_start<-X%*%beta_null+W%*%ranef_null
@@ -2792,7 +2783,8 @@ if(control$complexity!="hat.matrix")
     D<-as.vector(family$mu.eta(Eta_start))
     Mu<-as.vector(family$linkinv(Eta_start))
     Sigma<-as.vector(family$variance(Mu))
- 
+
+    
      if(rnd.len==1)
     {
       lin0<-sum(beta_null!=0)
@@ -2826,13 +2818,19 @@ if(control$complexity!="hat.matrix")
     q<-dim(X)[2]
     
     Z_alles<-cbind(X,U,W)
+
     ########################################################## some definitions ################################################
     Delta<-matrix(0,control$steps,(lin+n%*%s))
     Delta[1,1:lin]<-beta_null[final.names]
     Delta[1,(lin+1):(lin+n%*%s)]<-t(ranef_null)
 
+    #browser()
+    
     Eta.ma<-matrix(0,control$steps+1,N)
     Eta.ma[1,]<-Eta_start
+    
+    logLik.vec<-c()
+#    logLik.test<-c()
     
     control$epsilon<-control$epsilon*sqrt(dim(Delta)[2])
     
@@ -2921,29 +2919,19 @@ if(control$complexity!="hat.matrix")
     }else{
       phi<-1
     }
+ 
     
     Q<-list()
     Q[[1]]<-Q_start
     
     l=1
         
-    score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
-    
-
-    if (BLOCK)
-    {
-      grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
-    }else{
-      grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
-    }
-    
-    score_vec<-c(score_vec[1:q],grad.1,score_vec[(lin+1):(lin+n%*%s)])
-    
     if(rnd.len==1)
     {
       if(s==1)
       {
         P1<-c(rep(0,lin),rep((Q_start^(-1)),n*s))
+        P1<-diag(P1)
       }else{
         Q_inv.start<-chol2inv(chol(Q_start))
         P1<-matrix(0,lin+n%*%s,lin+n%*%s)
@@ -2954,6 +2942,7 @@ if(control$complexity!="hat.matrix")
       if(all(s==1))
       {
         P1<-c(rep(0,lin),rep(diag(Q_start)^(-1),n))
+        P1<-diag(P1)
       }else{
         Q_inv.start<-list()
         Q_inv.start[[1]]<-chol2inv(chol(Q_start[1:s[1],1:s[1]]))
@@ -2970,20 +2959,42 @@ if(control$complexity!="hat.matrix")
         }
       }
     }
-
-    if(all(s==1))
+    
+    #browser()
+    score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+    lambda.max<-max(abs(score_vec[(q+1):lin]))
+    
+    #browser()
+    if (BLOCK)
     {
-      F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+      grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
     }else{
-      F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+      grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
     }
+    
+    score_vec<-c(score_vec[1:q],grad.1,score_vec[(lin+1):(lin+n%*%s)])
+    
+    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
         
     crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
     t_edge<-crit.obj$min.rate
     
     grad.2<-t(score_vec)%*%F_gross%*%score_vec
     
-    t_opt<-l2norm(score_vec)$length/grad.2
+#   t_opt<-l2norm(score_vec)$length/grad.2
+
+    ranef.logLik<- -0.5*t(Delta_start[(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta_start[(lin+1):(lin+n%*%s)]
+    
+#    logLik.test[1]<-logLik.glmmLasso(y=y,mu=Mu,beta=Delta_start[(q+1):(lin)],ranef.logLik=ranef.logLik,
+#                                    family=family,penal=T)
+    
+    optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
+                      Grad=score_vec,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
+                      lower = 0, upper = Inf)
+    
+    t_opt<-optim.obj$par
+    
+    
     nue<-control$nue
     
     
@@ -3006,6 +3017,12 @@ if(control$complexity!="hat.matrix")
         Sigma<-as.vector(family$variance(Mu))
         D<-as.vector(family$mu.eta(Eta))
 
+        ranef.logLik<- -0.5*t(Delta[1,(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta[1,(lin+1):(lin+n%*%s)]
+        
+        logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T)
+        
+#        logLik.test[1]<-logLik.vec[1]-logLik.test[1]
+        
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,n%*%s))
         Z_aktuell<-Z_alles[,active]
         lin_akt<-q+sum(!is.element(Delta[1,(q+1):lin],0))
@@ -3183,21 +3200,13 @@ if(control$complexity!="hat.matrix")
       
      Eta.old<-Eta
             
-    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
 
-      if (BLOCK)
-      {
-        grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
-      }else{
-        grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
-      }
-      score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+n%*%s)])
-      
     if(rnd.len==1)
     {
       if(s==1)
       {
         P1<-c(rep(0,lin),rep((Q1^(-1)),n*s))
+        P1<-diag(P1)
       }else{
         Q_inv<-solve(Q1)
         P1<-matrix(0,lin+n%*%s,lin+n%*%s)
@@ -3208,6 +3217,7 @@ if(control$complexity!="hat.matrix")
       if(all(s==1))
       {
         P1<-c(rep(0,lin),rep(diag(Q1)^(-1),n))
+        P1<-diag(P1)
       }else{
         Q_inv<-list()
         Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
@@ -3225,19 +3235,32 @@ if(control$complexity!="hat.matrix")
       }
     }
     
-    if(all(s==1))
+    
+    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+    lambda.max<-max(abs(score_vec2[(q+1):lin]))
+    
+      if (BLOCK)
       {
-        F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+        grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
       }else{
-        F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+        grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
       }
+      score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+n%*%s)])
+      
+      F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
       
     crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
     t_edge<-crit.obj$min.rate
     
       grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
       
-      t_opt<-l2norm(score_vec2)$length/grad.2
+#      t_opt<-l2norm(score_vec2)$length/grad.2
+      
+      optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
+                        Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
+                      lower = 0, upper = Inf)
+      
+      t_opt<-optim.obj$par
     
     Eta.ma[2,]<-Eta
 
@@ -3254,6 +3277,7 @@ if(control$complexity!="hat.matrix")
     {
       for (l in 2:control$steps)
       {
+        #browser() 
          if(control$print.iter)
           print(paste("Iteration ", l,sep=""))
          
@@ -3267,15 +3291,26 @@ if(control$complexity!="hat.matrix")
             {
               half.index<-Inf;Q1.old<-Q1.very.old;Q_inv.old<-Q_inv.very.old
             }
-            
-              Delta[l,]<-Delta[l-1,]+min(t_opt,t_edge)*nue*(0.5^half.index)*score_vec
+                        
+            Delta[l,]<-Delta[l-1,]+min(t_opt,t_edge)*nue*(0.5^half.index)*score_vec
             if(t_opt>t_edge & half.index==0)
               Delta[l,crit.obj$whichmin+q]<-0  
           
+            
             Eta<-Z_alles%*%Delta[l,]
             Mu<-as.vector(family$linkinv(Eta))
             Sigma<-as.vector(family$variance(Mu))
             D<-as.vector(family$mu.eta(Eta))
+             
+ #          ranef.logLik<- -0.5*t(Delta[l-1,(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta[l-1,(lin+1):(lin+n%*%s)]
+ #          logLik.test[l]<-logLik.glmmLasso(y=y,mu=Mu,beta=Delta[l-1,(q+1):(lin)],ranef.logLik=ranef.logLik,
+ #                                            family=family,penal=T)
+            
+            ranef.logLik<- -0.5*t(Delta[l,(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta[l,(lin+1):(lin+n%*%s)]
+                       
+            logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T)
+            
+  #          logLik.test[l]<-logLik.vec[l]-logLik.test[l]
             
             active_old<-active
             active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,n%*%s))
@@ -3442,22 +3477,12 @@ if(control$complexity!="hat.matrix")
           
           Q[[l+1]]<-Q1
           
-        score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)
-        
-          if (BLOCK)
-          {
-            grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda,block=block)
-          }else{
-            grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda)
-          }
-        
-          score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+n%*%s)])
-        
         if(rnd.len==1)
         {
           if(s==1)
           {
             P1<-c(rep(0,lin),rep((Q1^(-1)),n*s))
+            P1<-diag(P1)
           }else{
             Q_inv<-solve(Q1)
             P1<-matrix(0,lin+n%*%s,lin+n%*%s)
@@ -3468,6 +3493,7 @@ if(control$complexity!="hat.matrix")
           if(all(s==1))
           {
             P1<-c(rep(0,lin),rep(diag(Q1)^(-1),n))
+            P1<-diag(P1)
           }else{
             Q_inv<-list()
             Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
@@ -3484,20 +3510,34 @@ if(control$complexity!="hat.matrix")
             }
           }
         }
+
+        score_vec.unpen<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l,]
+        lambda.max<-max(abs(score_vec2[(q+1):lin]))
         
-          if(all(s==1))
+          if (BLOCK)
           {
-            F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+            grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda,block=block)
           }else{
-            F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+            grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda)
           }
+        
+          score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+n%*%s)])
+        
+          F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
           
         crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
         t_edge<-crit.obj$min.rate
         
           grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
           
-          t_opt<-l2norm(score_vec2)$length/grad.2
+ #         t_opt<-l2norm(score_vec2)$length/grad.2
+        
+        
+        optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
+                          Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
+                          lower = 0, upper = Inf)
+        
+        t_opt<-optim.obj$par
         
         score_vec<-score_vec2
         Q1.very.old<-Q1.old
@@ -3506,14 +3546,14 @@ if(control$complexity!="hat.matrix")
         Q_inv.old<-Q_inv    
         
         Eta.ma[l+1,]<-Eta
-        
         finish<-(sqrt(sum((Eta.ma[l,]-Eta.ma[l+1,])^2))/sqrt(sum((Eta.ma[l,])^2))<control$epsilon)
         finish2<-(sqrt(sum((Eta.ma[l-1,]-Eta.ma[l+1,])^2))/sqrt(sum((Eta.ma[l-1,])^2))<control$epsilon)
         if(finish ||  finish2) #|| (all(grad.1 == 0) ))
           break
         Eta.old<-Eta
       }}
-    
+
+#browser()
 
     if(control$method=="REML")
     {
@@ -3576,40 +3616,11 @@ if(control$complexity!="hat.matrix")
     
     
     
-    if(rnd.len==1)
-    {
-      if(s==1)
-      {
-        P1.ran<-rep((Qfinal^(-1)),n*s)
-        P1.ran<-diag(P1.ran)
-      }else{
-        P1.ran<-matrix(0,n*s,n*s)
-        for(jf in 1:n)
-          P1.ran[((jf-1)*s+1):(jf*s),((jf-1)*s+1):(jf*s)]<-chol2inv(chol(Qfinal))
-      }
-    }else{
-      if(all(s==1))
-      {
-        P1.ran<-rep(diag(Qfinal)^(-1),n)
-        P1.ran<-diag(P1.ran)
-      }else{
-        P1.ran<-matrix(0,n%*%s,n%*%s)
-        inv.act<-chol2inv(chol(Qfinal[1:s[1],1:s[1]]))
-        for(jf in 1:n[1])
-          P1.ran[( (jf-1)*s[1]+1):( jf*s[1]),( (jf-1)*s[1]+1):( jf*s[1])]<-inv.act
-        
-        for (zu in 2:rnd.len)
-        {
-          inv.act<-chol2inv(chol(Qfinal[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
-          for(jf in 1:n[zu])
-            P1.ran[( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
-                   ( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-inv.act
-        }
-      }
-    }
-    ranef.logLik<--0.5*t(Delta_neu[(lin+1):(lin+n%*%s)])%*%P1.ran%*%Delta_neu[(lin+1):(lin+n%*%s)]
+
+    # ranef.logLik<- -0.5*t(Delta_neu[(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta_neu[(lin+1):(lin+n%*%s)]
     
-    
+    # ranef.logLik.vec[l]<-ranef.loglik
+  
     if(final.re)
     {    
       ############ final re-estimation
@@ -3624,20 +3635,21 @@ if(control$complexity!="hat.matrix")
         Q.min<-min(Qfinal)-1e-10
       }
       
+      
       if(rnd.len==1)
       {
         glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=Qfinal,
                                  Delta_start=Delta_neu[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                                  family=family,method=control$method.final,overdispersion=control$overdispersion,
                                  phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
-                                 Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))#,silent = TRUE)
+                                 Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=q_start,
                                     Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                                     family=family,method=control$method.final,overdispersion=control$overdispersion,
                                     phi=control$phi,print.iter.final=control$print.iter.final,
-                                    eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))
+                                    eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin2)!="try-error")
           {    
             if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -3649,14 +3661,14 @@ if(control$complexity!="hat.matrix")
                                               Delta_start=Delta_neu[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                                               family=family,method=control$method.final,overdispersion=control$overdispersion,
                                               phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
-                                              eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))#,silent = TRUE)
+                                              eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
         if(class(glmm_fin)=="try-error"|| glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final_multi_random(y,Z_fastalles[,aaa],W,k,q_start=q_start,
                                                  Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                                                  family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                  phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
-                                                 eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))    
+                                                 eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)    
           if(class(glmm_fin2)!="try-error")
           {    
             if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -3671,6 +3683,7 @@ if(control$complexity!="hat.matrix")
         cat("Final Fisher scoring reestimation did not converge!\n")
       }
       #######
+       ranef.logLik<-glmm_fin$ranef.logLik
     }else{
       glmm_fin<-NA  
       class(glmm_fin)<-"try-error"
@@ -3746,8 +3759,9 @@ if(control$complexity!="hat.matrix")
     if (is.element(family$family,c("gaussian", "binomial", "poisson"))) 
     {
       
-      loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,beta=Delta_neu[(q+1):(lin)],ranef.logLik=glmm_fin$ranef.logLik,
-                               lambda=lambda,family=family,penal=FALSE)
+      loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=ranef.logLik,family=family,penal=T)
+  
+      #loglik2<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=ranef.logLik,family=family,penal=F)
       
 if(control$complexity!="hat.matrix")  
 {  
@@ -3790,14 +3804,17 @@ if(control$complexity!="hat.matrix")
     ret.obj$y <- y
     ret.obj$df<-df
     ret.obj$loglik<-loglik
+    ret.obj$lambda.max<-lambda.max
+    ret.obj$logLik.vec<-logLik.vec
+    ret.obj$ score_vec.unpen<- score_vec.unpen
+#    ret.obj$logLik.test<-logLik.test
     return(ret.obj)
     ##############################################################  
     ######################## 2. Smooth ###########################  
     ##############################################################  
   }else{
     
-   # browser()
-    
+     
     smooth<-control$smooth
     
     if(attr(terms(smooth$formula), "intercept")==0)
@@ -3899,7 +3916,7 @@ if(control$complexity!="hat.matrix")
     Delta_start<-Delta[1,]
     
     active_old<-!is.element(Delta[1,],0)
-    
+    logLik.vec<-c()
     
     Eta.ma<-matrix(0,control$steps+1,N)
     Eta.ma[1,]<-Eta_start
@@ -4004,43 +4021,12 @@ if(control$complexity!="hat.matrix")
     k22<-rep(k2,m)
     penal.vec<-penal*k22
     
-     #if(rnd.len==1)
-    #{
-    #  if(s==1)
-    #  {
-    #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n*s))
-    #  }else{
-    #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n%*%s))
-    #  }
-    #}else{
-    #  if(all(s==1))
-    #  {
-    #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,rnd.len*n))
-    # }else{
-    #    P.smooth<-c(rep(0,lin),penal.vec,rep(0,n%*%s))
-    #  }
-    #}
-    
-   #browser()
-    
-    score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[1,])
-   
-    lambda.max<-max(abs(score_vec[q:lin]))
-   
-    if (BLOCK)
-    {
-      grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
-    }else{
-      grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
-    }
-    
-    score_vec<-c(score_vec[1:q],grad.1,score_vec[(lin+1):(lin+dim.smooth+n%*%s)])
-    
     if(rnd.len==1)
     {
       if(s==1)
       {
         P1<-c(rep(0,lin),penal.vec,rep((Q_start^(-1)),n*s))
+        P1<-diag(P1)
       }else{
         Q_inv.start<-chol2inv(chol(Q_start))
         P1<-matrix(0,lin+dim.smooth+n%*%s,lin+dim.smooth+n%*%s)
@@ -4052,6 +4038,7 @@ if(control$complexity!="hat.matrix")
       if(all(s==1))
       {
         P1<-c(rep(0,lin),penal.vec,rep(diag(Q_start)^(-1),n))
+        P1<-diag(P1)
       }else{
         Q_inv.start<-list()
         Q_inv.start[[1]]<-chol2inv(chol(Q_start[1:s[1],1:s[1]]))
@@ -4070,22 +4057,40 @@ if(control$complexity!="hat.matrix")
       }
     }
 
-    if(all(s==1))
+    score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+   
+    lambda.max<-max(abs(score_vec[(q+1):lin]))
+   
+    if (BLOCK)
     {
-      F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+      grad.1<-gradient.lasso.block(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda,block=block)
     }else{
-      F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+      grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
     }
+    
+    score_vec<-c(score_vec[1:q],grad.1,score_vec[(lin+1):(lin+dim.smooth+n%*%s)])
+    
+
+    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
     
     crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
     t_edge<-crit.obj$min.rate
     
     grad.2<-t(score_vec)%*%F_gross%*%score_vec
     
-    t_opt<-l2norm(score_vec)$length/grad.2
-    nue<-control$nue
-    
-    half.index<-0
+#    t_opt<-l2norm(score_vec)$length/grad.2
+
+    ranef.logLik<- -0.5*t(Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
+
+    optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+                      Grad=score_vec,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
+                      lower = 0, upper = Inf)
+
+    t_opt<-optim.obj$par
+
+      nue<-control$nue
+      
+      half.index<-0
 
       solve.test2<-FALSE  
       while(!solve.test2)
@@ -4105,6 +4110,10 @@ if(control$complexity!="hat.matrix")
         Sigma<-as.vector(family$variance(Mu))
         D<-as.vector(family$mu.eta(Eta))
         
+        ranef.logLik<- -0.5*t(Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
+        
+        logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T)
+
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
         Z_aktuell<-Z_alles[,active]
         lin_akt<-q+sum(!is.element(Delta[1,(q+1):lin],0))
@@ -4290,9 +4299,46 @@ if(control$complexity!="hat.matrix")
       
       vorz<-F
     
-   # browser()
-    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[1,])
-    lambda.max<-max(abs(score_vec2[q:lin]))
+      if(rnd.len==1)
+      {
+        if(s==1)
+        {
+          P1<-c(rep(0,lin),penal.vec,rep((Q1^(-1)),n*s))
+          P1<-diag(P1)
+        }else{
+          Q_inv<-chol2inv(chol(Q1))
+          Q_inv.old.temp<-Q_inv
+          P1<-matrix(0,lin+dim.smooth+n%*%s,lin+dim.smooth+n%*%s)
+          diag(P1)[(lin+1):(lin+dim.smooth)]<-penal.vec
+          for(j in 1:n)
+            P1[(lin+dim.smooth+(j-1)*s+1):(lin+dim.smooth+j*s),(lin+dim.smooth+(j-1)*s+1):(lin+dim.smooth+j*s)]<-Q_inv
+        }
+      }else{
+        if(all(s==1))
+        {
+          P1<-c(rep(0,lin),penal.vec,rep(diag(Q1)^(-1),n))
+          P1<-diag(P1)
+        }else{
+          Q_inv<-list()
+          Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
+          P1<-matrix(0,lin+dim.smooth+n%*%s,lin+dim.smooth+n%*%s)
+          diag(P1)[(lin+1):(lin+dim.smooth)]<-penal.vec
+          for(jf in 1:n[1])
+            P1[(lin+dim.smooth+(jf-1)*s[1]+1):(lin+dim.smooth+jf*s[1]),(lin+dim.smooth+(jf-1)*s[1]+1):(lin+dim.smooth+jf*s[1])]<-Q_inv[[1]]
+          
+          for (zu in 2:rnd.len)
+          {
+            Q_inv[[zu]]<-chol2inv(chol(Q1[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
+            for(jf in 1:n[zu])
+              P1[(lin+dim.smooth+n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):(lin+dim.smooth+n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
+                 (lin+dim.smooth+n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):(lin+dim.smooth+n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-Q_inv[[zu]]
+          }
+        }
+      }
+
+    score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
+    
+    lambda.max<-max(abs(score_vec2[(q+1):lin]))
    
       if (BLOCK)
       {
@@ -4302,55 +4348,22 @@ if(control$complexity!="hat.matrix")
       }
       score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+dim.smooth+n%*%s)])
       
-    if(rnd.len==1)
-    {
-      if(s==1)
-      {
-        P1<-c(rep(0,lin),penal.vec,rep((Q1^(-1)),n*s))
-      }else{
-        Q_inv<-chol2inv(chol(Q1))
-        Q_inv.old.temp<-Q_inv
-        P1<-matrix(0,lin+dim.smooth+n%*%s,lin+dim.smooth+n%*%s)
-        diag(P1)[(lin+1):(lin+dim.smooth)]<-penal.vec
-        for(j in 1:n)
-          P1[(lin+dim.smooth+(j-1)*s+1):(lin+dim.smooth+j*s),(lin+dim.smooth+(j-1)*s+1):(lin+dim.smooth+j*s)]<-Q_inv
-      }
-    }else{
-      if(all(s==1))
-      {
-        P1<-c(rep(0,lin),penal.vec,rep(diag(Q1)^(-1),n))
-      }else{
-        Q_inv<-list()
-        Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
-        P1<-matrix(0,lin+dim.smooth+n%*%s,lin+dim.smooth+n%*%s)
-        diag(P1)[(lin+1):(lin+dim.smooth)]<-penal.vec
-        for(jf in 1:n[1])
-          P1[(lin+dim.smooth+(jf-1)*s[1]+1):(lin+dim.smooth+jf*s[1]),(lin+dim.smooth+(jf-1)*s[1]+1):(lin+dim.smooth+jf*s[1])]<-Q_inv[[1]]
-        
-        for (zu in 2:rnd.len)
-        {
-          Q_inv[[zu]]<-chol2inv(chol(Q1[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
-          for(jf in 1:n[zu])
-            P1[(lin+dim.smooth+n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):(lin+dim.smooth+n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
-               (lin+dim.smooth+n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):(lin+dim.smooth+n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-Q_inv[[zu]]
-        }
-      }
-    }
-    
-    if(all(s==1))
-      {
-        F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
-      }else{
-        F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
-      }
+      F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
       
     crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
     t_edge<-crit.obj$min.rate
     
       grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
       
-      t_opt<-l2norm(score_vec2)$length/grad.2
+    #  t_opt<-l2norm(score_vec2)$length/grad.2
        
+      optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+                        Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
+                        lower = 0, upper = Inf)
+      
+      t_opt<-optim.obj$par
+
+
     Eta.ma[2,]<-Eta
     
     score_vec<-score_vec2
@@ -4369,10 +4382,7 @@ if(control$complexity!="hat.matrix")
         if(control$print.iter)
           print(paste("Iteration ", l,sep=""))
         
- 
-        
-        
-        half.index<-0
+         half.index<-0
 
         solve.test2<-FALSE  
           while(!solve.test2)
@@ -4392,6 +4402,10 @@ if(control$complexity!="hat.matrix")
             Mu<-as.vector(family$linkinv(Eta))
             Sigma<-as.vector(family$variance(Mu))
             D<-as.vector(family$mu.eta(Eta))
+            
+            ranef.logLik<- -0.5*t(Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
+            
+            logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T)
             
             active_old<-active
             active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
@@ -4565,24 +4579,12 @@ if(control$complexity!="hat.matrix")
           
           Q[[l+1]]<-Q1
           
-        score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-t(t(P.smooth)*Delta[l,])
-        score.pure<-score_vec2
-        lambda.max<-max(abs(score_vec2[(q+1):lin]))
-        
-        
-          if (BLOCK)
-          {
-            grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda,block=block)
-          }else{
-            grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda)
-          }
-          score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+dim.smooth+n%*%s)])
-          
         if(rnd.len==1)
         {
           if(s==1)
           {
             P1<-c(rep(0,lin),penal.vec,rep((Q1^(-1)),n*s))
+            P1<-diag(P1)
           }else{
             Q_inv<-chol2inv(chol(Q1))
             P1<-matrix(0,lin+dim.smooth+n%*%s,lin+dim.smooth+n%*%s)
@@ -4594,6 +4596,7 @@ if(control$complexity!="hat.matrix")
           if(all(s==1))
           {
             P1<-c(rep(0,lin),penal.vec,rep(diag(Q1)^(-1),n))
+            P1<-diag(P1)
           }else{
             Q_inv<-list()
             Q_inv[[1]]<-chol2inv(chol(Q1[1:s[1],1:s[1]]))
@@ -4612,20 +4615,34 @@ if(control$complexity!="hat.matrix")
           }
         }
         
-        if(all(s==1))
+        score_vec2<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l,]
+        score.pure<-score_vec2
+        lambda.max<-max(abs(score_vec2[(q+1):lin]))
+        
+        
+          if (BLOCK)
           {
-            F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+diag(P1)
+            grad.1<-gradient.lasso.block(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda,block=block)
           }else{
-            F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+            grad.1<-gradient.lasso(score.beta=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin],lambda.b=lambda)
           }
+          score_vec2<-c(score_vec2[1:q],grad.1,score_vec2[(lin+1):(lin+dim.smooth+n%*%s)])
+          
+          F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
           
         crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
         t_edge<-crit.obj$min.rate
         
           grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
           
-          t_opt<-l2norm(score_vec2)$length/grad.2
+  #        t_opt<-l2norm(score_vec2)$length/grad.2
           
+        optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+                          Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
+                          lower = 0, upper = Inf)
+        
+        t_opt<-optim.obj$par
+  
         score_vec<-score_vec2
         Q1.very.old<-Q1.old
         Q_inv.very.old<-Q_inv.old
@@ -4649,7 +4666,6 @@ if(control$complexity!="hat.matrix")
     conv.step<-l
     phi.med<-phi
 
-   #browser()
    
    
     if(conv.step==control$steps)
@@ -4666,40 +4682,6 @@ if(control$complexity!="hat.matrix")
     Qfinal<-Q[[l+1]]
     
     aaa<-!is.element(Delta_neu[1:(lin)],0)
-    
-    if(rnd.len==1)
-    {
-      if(s==1)
-      {
-        P1.ran<-rep((Qfinal^(-1)),n*s)
-        P1.ran<-diag(P1.ran)
-      }else{
-        P1.ran<-matrix(0,n*s,n*s)
-        for(jf in 1:n)
-          P1.ran[((jf-1)*s+1):(jf*s),((jf-1)*s+1):(jf*s)]<-chol2inv(chol(Qfinal))
-      }
-    }else{
-      if(all(s==1))
-      {
-        P1.ran<-rep(diag(Qfinal)^(-1),n)
-        P1.ran<-diag(P1.ran)
-      }else{
-        P1.ran<-matrix(0,n%*%s,n%*%s)
-        inv.act<-chol2inv(chol(Qfinal[1:s[1],1:s[1]]))
-        for(jf in 1:n[1])
-          P1.ran[( (jf-1)*s[1]+1):( jf*s[1]),( (jf-1)*s[1]+1):( jf*s[1])]<-inv.act
-        
-        for (zu in 2:rnd.len)
-        {
-          inv.act<-chol2inv(chol(Qfinal[(sum(s[1:(zu-1)])+1):sum(s[1:zu]),(sum(s[1:(zu-1)])+1):sum(s[1:zu])]))
-          for(jf in 1:n[zu])
-            P1.ran[( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu]),
-                   ( n[1:(zu-1)]%*%s[1:(zu-1)]+(jf-1)*s[zu]+1):( n[1:(zu-1)]%*%s[1:(zu-1)]+jf*s[zu])]<-inv.act
-        }
-      }  
-    }  
-    
-    ranef.logLik<--0.5*t(Delta_neu[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%P1.ran%*%Delta_neu[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
     
     
     if(final.re)
@@ -4722,14 +4704,14 @@ if(control$complexity!="hat.matrix")
                                         Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth+n%*%s))],
                                         s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                         phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
-                                        Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))#,silent = TRUE)
+                                        Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=q_start,
                                            Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                            s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                            phi=control$phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
-                                           Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))
+                                           Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin2)!="try-error")
           {    
             if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -4741,14 +4723,14 @@ if(control$complexity!="hat.matrix")
                                                      Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth+n%*%s))],
                                                      s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                      phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
-                                                     Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))#,silent = TRUE)
+                                                     Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final_multi_random_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=q_start,
                                                         Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                                         s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                         phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
-                                                        eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac))
+                                                        eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin2)!="try-error")
           {    
             if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -4901,10 +4883,11 @@ if(control$complexity!="hat.matrix")
     aic<-NaN
     bic<-NaN
     
+
     if (is.element(family$family,c("gaussian", "binomial", "poisson"))) 
     {
-      loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,beta=Delta_neu[(q+1):(lin)],ranef.logLik=glmm_fin$ranef.logLik,
-                               lambda=lambda,family=family,penal=FALSE)
+      loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T)
+      
 if(control$complexity!="hat.matrix")  
 {  
         if(rnd.len==1)
@@ -4954,7 +4937,8 @@ if(control$complexity!="hat.matrix")
     ret.obj$df<-df
     ret.obj$loglik<-loglik
     ret.obj$lambda.max<-lambda.max
-ret.obj$score.pure<-score.pure
+    ret.obj$score.pure<-score.pure
+    ret.obj$logLik.vec<-logLik.vec
     return(ret.obj)
   }  
 }

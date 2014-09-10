@@ -37,7 +37,7 @@ Q[[1]]<-q_start
 l=1
 opt<-steps
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P1%*%Delta[1,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
@@ -144,7 +144,7 @@ if(s==1)
     P1[(lin+(jf-1)*s+1):(lin+jf*s),(lin+(jf-1)*s+1):(lin+jf*s)]<-chol2inv(chol(Q1))
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P1%*%Delta[1,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 
@@ -290,7 +290,7 @@ if(s==1)
     P1[(lin+(jf-1)*s+1):(lin+jf*s),(lin+(jf-1)*s+1):(lin+jf*s)]<-chol2inv(chol(Q1))
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)#-P1%*%Delta[l,]
+score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
@@ -305,7 +305,6 @@ InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
 }
 
 Eta.ma[l+1,]<-Eta
-
 
 P1.old.temp<-P1.old
 
@@ -418,7 +417,7 @@ if(s==1)
     P1.ran[((jf-1)*s+1):(jf*s),((jf-1)*s+1):(jf*s)]<-chol2inv(chol(Q_final))
 }
 
-ranef.logLik<--0.5*t(Deltafinal[(lin+1):(lin+n*s)])%*%P1.ran%*%Deltafinal[(lin+1):(lin+n*s)]
+ranef.logLik<- -0.5*t(Deltafinal[(lin+1):(lin+n*s)])%*%P1.ran%*%Deltafinal[(lin+1):(lin+n*s)]
 
 #FinalHat<-(Z_alles*sqrt(D*1/Sigma*D))%*%Inv_F_opt%*%t(Z_alles*sqrt(D*1/Sigma*D))
 

@@ -17,8 +17,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.3.1\cr
-Date: \tab 2013-07-10\cr
+Version: \tab 1.3.2\cr
+Date: \tab 2013-09-11\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -106,49 +106,49 @@ soccer<-data.frame(soccer)
 
 ## linear mixed model
 lm1 <- glmmLasso(points ~ transfer.spendings + ave.unfair.score 
-       + transfer.receits + ball.possession + tackles 
+       + ball.possession + tackles 
        + ave.attend + sold.out, rnd = list(team=~1), 
-       lambda=1e-4, data = soccer)
+       lambda=1, data = soccer)
       
 summary(lm1)
 
 ## linear mixed model with slope on ave.attend;  
 ## the coefficient of ave.attend is not penalized;
 lm2 <- glmmLasso(points~transfer.spendings + ave.unfair.score 
-       + transfer.receits + ball.possession + tackles + ave.attend 
-       + sold.out, rnd = list(team=~1 + ave.attend), lambda=1, 
-       data = soccer, control = list(index=c(1,2,3,4,5,NA,6), 
-       method="REML",method.final="REML",print.iter=TRUE))
+      + ball.possession + tackles + ave.attend 
+       + sold.out, rnd = list(team=~1 + ave.attend), lambda=10, 
+       data = soccer, control = list(index=c(1,2,3,4,NA,5), 
+       method="REML",print.iter=TRUE))
 
 summary(lm2)
 
 ## linear mixed model with categorical covariates
 ## and final Fisher scoring re-estimation step
 lm3 <- glmmLasso(points ~ transfer.spendings + as.factor(red.card)  
-       + as.factor(yellow.red.card) + transfer.receits + ball.possession
+       + as.factor(yellow.red.card) + ball.possession 
        + tackles + ave.attend + sold.out, rnd = list(team=~1), 
-       data = soccer, lambda=160, final.re=TRUE,
+       data = soccer, lambda=100, final.re=TRUE,
        control = list(print.iter=TRUE,print.iter.final=TRUE))
 
 summary(lm3)
 
 ## generalized linear mixed model
 glm1 <- glmmLasso(points~transfer.spendings  
-        + ave.unfair.score + transfer.receits + ball.possession
+        + ave.unfair.score + ball.possession 
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = poisson(link = log), data = soccer, lambda=0.1,
-        control = list(overdispersion=TRUE,print.iter=TRUE)) 
+        family = poisson(link = log), data = soccer, lambda=452,
+        control = list(print.iter=TRUE)) 
 
 summary(glm1)
 
 ## generalized linear mixed model with a smooth term
-glm2 <- glmmLasso(points~ + ave.unfair.score + transfer.receits 
-        + ball.possession + tackles + ave.attend + sold.out, 
+glm2 <- glmmLasso(points~ + ave.unfair.score + ave.attend 
+        + ball.possession + tackles  + sold.out, 
         rnd = list(team=~1),  family = poisson(link = log), 
-        data = soccer, lambda=100, control = list(smooth=
-        list(formula=~-1+transfer.spendings, nbasis=5, 
-        spline.degree=3, diff.ord=2, penal=1), 
-        overdispersion=TRUE,print.iter=TRUE)) 
+        data = soccer, lambda=350, control = list(smooth=
+        list(formula=~-1 + transfer.spendings, nbasis=7, 
+        spline.degree=3, diff.ord=2, penal=0.5), 
+        print.iter=TRUE)) 
  
 summary(glm2)
  
