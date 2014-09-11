@@ -13,7 +13,8 @@ D<-as.vector(family$mu.eta(Eta))
 W0_inv<-D*1/Sigma*D
 
 if(print.iter.final)
-print(paste("Final Re-estimation Iteration ", 1,sep=""))
+  message("Final Re-estimation Iteration ", 1)
+#print(paste("Final Re-estimation Iteration ", 1,sep=""))
 
 
 Z_alles<-cbind(X,W)
@@ -223,7 +224,8 @@ for (l in 2:steps)
 {
   
 if(print.iter.final)
-print(paste("Final Re-estimation Iteration ", l,sep=""))
+  message("Final Re-estimation Iteration ", l)
+#print(paste("Final Re-estimation Iteration ", l,sep=""))
 
 half.index<-0
 solve.test<-FALSE

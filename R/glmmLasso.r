@@ -193,7 +193,8 @@ old.names<-attr(X,"dimnames")[[2]]
 
 
 if(control$print.iter)
-  print(paste("Iteration ", 1,sep=""))
+  message("Iteration 1")
+#  print(paste("Iteration ", 1,sep=""))
 
 
 if(is.list(rnd))
@@ -909,7 +910,8 @@ if(control$steps!=1)
     for (l in 2:control$steps)
     {
       if(control$print.iter)
-        print(paste("Iteration ", l,sep=""))
+        message("Iteration ",l)
+        #print(paste("Iteration ", l,sep=""))
       
       if(!vorz)
         tryNR<-F
@@ -2120,7 +2122,8 @@ if(control$steps!=1)
     
     
     if(control$print.iter)
-      print(paste("Iteration ", l,sep=""))
+      message("Iteration ",l)
+      #print(paste("Iteration ", l,sep=""))
       
     if(!vorz)
       tryNR<-F
@@ -3279,7 +3282,8 @@ if(control$complexity!="hat.matrix")
       {
         #browser() 
          if(control$print.iter)
-          print(paste("Iteration ", l,sep=""))
+           message("Iteration ",l)
+          #print(paste("Iteration ", l,sep=""))
          
         half.index<-0
 
@@ -4380,7 +4384,8 @@ if(control$complexity!="hat.matrix")
       for (l in 2:control$steps)
       {
         if(control$print.iter)
-          print(paste("Iteration ", l,sep=""))
+          message("Iteration ",l)
+          #print(paste("Iteration ", l,sep=""))
         
          half.index<-0
 

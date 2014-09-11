@@ -17,8 +17,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.3.2\cr
-Date: \tab 2013-09-11\cr
+Version: \tab 1.3.3\cr
+Date: \tab 2013-09-12\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -133,11 +133,12 @@ lm3 <- glmmLasso(points ~ transfer.spendings + as.factor(red.card)
 summary(lm3)
 
 ## generalized linear mixed model
+## with starting values
 glm1 <- glmmLasso(points~transfer.spendings  
-        + ave.unfair.score + ball.possession 
-        + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = poisson(link = log), data = soccer, lambda=452,
-        control = list(print.iter=TRUE)) 
+        + ave.unfair.score + sold.out 
+        + tackles + ave.attend + ball.possession, rnd = list(team=~1),  
+        family = poisson(link = log), data = soccer, lambda=400, 
+        control = list(print.iter=TRUE,start=c(2,rep(0,29)),q.start=0.5)) 
 
 summary(glm1)
 
