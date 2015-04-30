@@ -3,12 +3,9 @@
 \alias{glmmLasso}
 \docType{package}
 \title{
-Variable selection for generalized linear mixed models by
-L1-penalized estimation.
-}
+Variable Selection for Generalized Linear Mixed Models by L1-Penalized Estimation.}
 \description{
-Variable selection for generalized linear mixed models by
-L1-penalized estimation.
+A variable selection approach for generalized linear mixed models by L1-penalized estimation is provided.
 }
 \details{
 The \code{glmmLasso} algorithm is a gradient ascent algorithm designed for generalized linear mixed models, which incorporates variable selection by L1-penalized estimation. In a final re-estimation step a model the includes only the variables corresponding to the non-zero fixed effects is fitted by simple Fisher scoring. For both the main algorithm as well as for the final re-estimation Fisher scoring 
@@ -17,8 +14,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.3.3\cr
-Date: \tab 2013-09-12\cr
+Version: \tab 1.3.4\cr
+Date: \tab 2014-04-30\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -51,7 +48,7 @@ glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL,
     model is fit.}
   \item{switch.NR}{logical. Should the algorithm swith to a Newton-Raphson update step, when reasonable? Default is FALSE.}
   \item{final.re}{logical. Should the final Fisher scoring re-estimation be performed? Default is FALSE.}
-  \item{control}{a list of control values for the estimation algorithm to replace the default values returned by the function \code{bGLMMControl}. Defaults to an empty list.}
+  \item{control}{a list of control values for the estimation algorithm to replace the default values returned by the function \code{\link{glmmLassoControl}}. Defaults to an empty list.}
 }
 \value{Generic functions such as \code{print}, \code{predict}, \code{plot} and \code{summary} have methods to show the results of the fit.
 The \code{predict} function uses also estimates of random effects for prediction, if possible (i.e. for known subjects of the grouping factor). The \code{plot} function 
@@ -108,7 +105,7 @@ soccer<-data.frame(soccer)
 lm1 <- glmmLasso(points ~ transfer.spendings + ave.unfair.score 
        + ball.possession + tackles 
        + ave.attend + sold.out, rnd = list(team=~1), 
-       lambda=1, data = soccer)
+       lambda=10, data = soccer)
       
 summary(lm1)
 
@@ -127,7 +124,7 @@ summary(lm2)
 lm3 <- glmmLasso(points ~ transfer.spendings + as.factor(red.card)  
        + as.factor(yellow.red.card) + ball.possession 
        + tackles + ave.attend + sold.out, rnd = list(team=~1), 
-       data = soccer, lambda=100, final.re=TRUE,
+       data = soccer, lambda=10, final.re=TRUE,
        control = list(print.iter=TRUE,print.iter.final=TRUE))
 
 summary(lm3)
@@ -137,8 +134,8 @@ summary(lm3)
 glm1 <- glmmLasso(points~transfer.spendings  
         + ave.unfair.score + sold.out 
         + tackles + ave.attend + ball.possession, rnd = list(team=~1),  
-        family = poisson(link = log), data = soccer, lambda=400, 
-        control = list(print.iter=TRUE,start=c(2,rep(0,29)),q.start=0.5)) 
+        family = poisson(link = log), data = soccer, lambda=100, 
+        control = list(print.iter=TRUE,start=c(1,rep(0,29)),q.start=0.7)) 
 
 summary(glm1)
 
@@ -146,9 +143,9 @@ summary(glm1)
 glm2 <- glmmLasso(points~ + ave.unfair.score + ave.attend 
         + ball.possession + tackles  + sold.out, 
         rnd = list(team=~1),  family = poisson(link = log), 
-        data = soccer, lambda=350, control = list(smooth=
+        data = soccer, lambda=100, control = list(smooth=
         list(formula=~-1 + transfer.spendings, nbasis=7, 
-        spline.degree=3, diff.ord=2, penal=0.5), 
+        spline.degree=3, diff.ord=2, penal=5), 
         print.iter=TRUE)) 
  
 summary(glm2)

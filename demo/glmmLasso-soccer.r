@@ -5,8 +5,6 @@ data("soccer")
 
 ## center all metric variables
 
-setwd("~/Dropbox/Gunther/glmmLasso/data/")
-load("soccer.rda")
 soccer[,c(4,5,9:16)]<-scale(soccer[,c(4,5,9:16)],center=T,scale=T)
 soccer<-data.frame(soccer)
 
@@ -22,9 +20,9 @@ family = poisson(link = log)
 BIC_vec<-rep(Inf,length(lambda))
 
 ## first fit good starting model
-library(MASS)
+library(MASS);library(nlme)
 PQL<-glmmPQL(points~1,random = ~1|team,family=family,data=soccer)
-Delta.start<-c(as.numeric(fixef(PQL)[1]),rep(0,6),t(ranef(PQL)))
+Delta.start<-c(as.numeric(PQL$coef$fixed),rep(0,6),as.numeric(t(PQL$coef$random$team)))
 Q.start<-as.numeric(VarCorr(PQL)[1,1])
 
 for(j in 1:length(lambda))
@@ -76,10 +74,11 @@ nk <- floor(N/kk)
 Devianz_ma<-matrix(Inf,ncol=kk,nrow=length(lambda))
 
 ## first fit good starting model
-library(MASS)
+library(MASS);library(nlme)
 PQL<-glmmPQL(points~1,random = ~1|team,family=family,data=soccer)
-Delta.start<-c(as.numeric(fixef(PQL)[1]),rep(0,6),t(ranef(PQL)))
+Delta.start<-c(as.numeric(PQL$coef$fixed),rep(0,6),as.numeric(t(PQL$coef$random$team)))
 Q.start<-as.numeric(VarCorr(PQL)[1,1])
+
 
 for(j in 1:length(lambda))
 {
@@ -180,7 +179,8 @@ glm3_final <- glmmLasso(points~transfer.spendings + ave.unfair.score
 summary(glm3_final)
 
 ## plot coefficient paths
-plot(lambda,Delta.start[2:(length(lambda)+1),2],type="l",ylim=c(-1e-11,1e-11))
+par(mar=c(6,6,4,4))
+plot(lambda,Delta.start[2:(length(lambda)+1),2],type="l",ylim=c(-1e-1,1e-1),ylab=expression(hat(beta[j])))
 lines(c(-1000,1000),c(0,0),lty=2)
 for(i in 3:7){
   lines(lambda[1:length(lambda)],Delta.start[2:(length(lambda)+1),i])

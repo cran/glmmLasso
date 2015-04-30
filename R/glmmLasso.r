@@ -3,7 +3,10 @@ taylor.opt<-function(t_opt,y,X,fixef,ranef,Grad,family,P)
   delta<-c(fixef,ranef)+t_opt*Grad
   Eta<- X%*%delta
   mu<-as.vector(family$linkinv(Eta))
-  loglik<--(sum(log(mu[y==1]))+sum(log((1-mu)[y==0])))+0.5*t(delta[(length(fixef)+1):length(delta)])%*%P%*%delta[(length(fixef)+1):length(delta)]
+  
+  loglik <- logLik.glmmLasso(y=y,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE) 
+    
+  loglik<- -loglik + 0.5*t(delta[(length(fixef)+1):length(delta)]) %*% P %*% delta[(length(fixef)+1):length(delta)]
   return(loglik)
 }
 
@@ -181,7 +184,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
 if(any(fac.variab))
   X[,fac.variab]<-scale(X[,fac.variab])
 
-if(dim(X)[2]==1)
+if(ncol(X)==1)
 {
   if(colnames(X)=="(Intercept)")
     stop("No terms to select! Use glmer, glmmPQL or glmmML!")
@@ -207,6 +210,13 @@ if(rnd.len==1)
   rndformula <- as.character(rnd)
   
   trmsrnd <- terms(rnd[[1]])
+
+  if(!is.factor(data[,names(rnd)[1]]))
+  {
+    data[,names(rnd)[1]] <- as.factor(data[,names(rnd)[1]])
+    warning("Cluster variable should be specified as a factor variable!")  
+  }
+  
   newrndfrml <- "~ -1"
   newrndfrml <- paste(newrndfrml,  if(attr(trmsrnd, "intercept")) names(rnd)[1] else "", sep=" + ")
   
@@ -249,6 +259,13 @@ if(rnd.len==1)
     rndformula[[zu]] <- as.character(rnd[[zu]])
     
     trmsrnd <- terms(rnd[[zu]])
+    
+    if(!is.factor(data[,names(rnd)[zu]]))
+    {
+      data[,names(rnd)[zu]] <- as.factor(data[,names(rnd)[zu]])
+      warning("Cluster variable should be specified as a factor variable!")  
+    }
+    
     newrndfrml[[zu]] <- "~ -1"
     newrndfrml[[zu]] <- paste(newrndfrml[[zu]],  if(attr(trmsrnd, "intercept")) names(rnd)[zu] else "", sep=" + ")
     
@@ -390,7 +407,7 @@ if(is.null(control$smooth))
   
   final.names<-c(colnames(X),colnames(U))
   
-  q<-dim(X)[2]
+  q<-ncol(X)
 
   
   Z_alles<-cbind(X,U,W)
@@ -556,9 +573,9 @@ if(is.null(control$smooth))
   
   ranef.logLik<- -0.5*t(Delta_start[(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta_start[(lin+1):(lin+n%*%s)]
   
-  optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
+  optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
                     Grad=score_vec,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
-                    lower = 0, upper = Inf)
+                    lower = 0, upper = Inf))
   
   t_opt<-optim.obj$par
   
@@ -828,9 +845,9 @@ if(is.null(control$smooth))
  
  #t_opt<-l2norm(score_vec2)$length/grad.2
  
- optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
+ optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
                    Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
-                   lower = 0, upper = Inf)
+                   lower = 0, upper = Inf))
  
  t_opt<-optim.obj$par
  
@@ -905,6 +922,7 @@ score_old<-score_old2
 
 ###############################################################################################################################################
 ################################################################### Main Iteration ###################################################################
+
 if(control$steps!=1)
   {
     for (l in 2:control$steps)
@@ -1174,9 +1192,9 @@ if(control$steps!=1)
  
 # t_opt<-l2norm(score_vec2)$length/grad.2
 
-    optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
+    optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
                      Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
-                     lower = 0, upper = Inf)
+                     lower = 0, upper = Inf))
 
     t_opt<-optim.obj$par
 
@@ -1301,6 +1319,7 @@ if(final.re)
                              family=family,method=control$method.final,overdispersion=control$overdispersion,
                              phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
                              Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
+    
     if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
     {  
     glmm_fin2<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=q_start,
@@ -1334,6 +1353,7 @@ if(final.re)
         }
     }
   }
+  
   
   if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
   {
@@ -1757,9 +1777,9 @@ if(control$complexity!="hat.matrix")
 
   ranef.logLik<- -0.5*t(Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
   
-  optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+  optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                     Grad=score_vec,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
-                    lower = 0, upper = Inf)
+                    lower = 0, upper = Inf))
   
   t_opt<-optim.obj$par
   
@@ -2036,9 +2056,9 @@ if(control$complexity!="hat.matrix")
   
   #t_opt<-l2norm(score_vec2)$length/grad.2
   
-  optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+  optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                     Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
-                    lower = 0, upper = Inf)
+                    lower = 0, upper = Inf))
   
   t_opt<-optim.obj$par
   
@@ -2393,9 +2413,9 @@ while(!solve.test)
     
     #t_opt<-l2norm(score_vec2)$length/grad.2
     
-    optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+    optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                       Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
-                      lower = 0, upper = Inf)
+                      lower = 0, upper = Inf))
     
     t_opt<-optim.obj$par
     
@@ -2991,9 +3011,9 @@ if(control$complexity!="hat.matrix")
 #    logLik.test[1]<-logLik.glmmLasso(y=y,mu=Mu,beta=Delta_start[(q+1):(lin)],ranef.logLik=ranef.logLik,
 #                                    family=family,penal=T)
     
-    optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
+    optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
                       Grad=score_vec,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
-                      lower = 0, upper = Inf)
+                      lower = 0, upper = Inf))
     
     t_opt<-optim.obj$par
     
@@ -3259,9 +3279,9 @@ if(control$complexity!="hat.matrix")
       
 #      t_opt<-l2norm(score_vec2)$length/grad.2
       
-      optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
                         Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
-                      lower = 0, upper = Inf)
+                      lower = 0, upper = Inf))
       
       t_opt<-optim.obj$par
     
@@ -3537,9 +3557,9 @@ if(control$complexity!="hat.matrix")
  #         t_opt<-l2norm(score_vec2)$length/grad.2
         
         
-        optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
+        optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
                           Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
-                          lower = 0, upper = Inf)
+                          lower = 0, upper = Inf))
         
         t_opt<-optim.obj$par
         
@@ -3619,7 +3639,7 @@ if(control$complexity!="hat.matrix")
     Qfinal<-Q[[l+1]]
     
     
-    
+    #browser()
 
     # ranef.logLik<- -0.5*t(Delta_neu[(lin+1):(lin+n%*%s)])%*%diag(P1[(lin+1):(lin+n%*%s)])%*%Delta_neu[(lin+1):(lin+n%*%s)]
     
@@ -3647,6 +3667,7 @@ if(control$complexity!="hat.matrix")
                                  family=family,method=control$method.final,overdispersion=control$overdispersion,
                                  phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
                                  Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
+                
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=q_start,
@@ -4086,9 +4107,9 @@ if(control$complexity!="hat.matrix")
 
     ranef.logLik<- -0.5*t(Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]
 
-    optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+    optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                       Grad=score_vec,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
-                      lower = 0, upper = Inf)
+                      lower = 0, upper = Inf))
 
     t_opt<-optim.obj$par
 
@@ -4361,9 +4382,9 @@ if(control$complexity!="hat.matrix")
       
     #  t_opt<-l2norm(score_vec2)$length/grad.2
        
-      optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                         Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
-                        lower = 0, upper = Inf)
+                        lower = 0, upper = Inf))
       
       t_opt<-optim.obj$par
 
@@ -4642,9 +4663,9 @@ if(control$complexity!="hat.matrix")
           
   #        t_opt<-l2norm(score_vec2)$length/grad.2
           
-        optim.obj<-nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+        optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                           Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
-                          lower = 0, upper = Inf)
+                          lower = 0, upper = Inf))
         
         t_opt<-optim.obj$par
   
