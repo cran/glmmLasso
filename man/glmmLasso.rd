@@ -14,8 +14,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.3.4\cr
-Date: \tab 2014-04-30\cr
+Version: \tab 1.3.5\cr
+Date: \tab 2014-08-26\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -35,7 +35,7 @@ glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL,
   \item{rnd}{a two-sided linear formula object describing the
     random-effects part of the model, with the grouping factor on the left of a
     \code{~} operator and the random terms, separated by \code{+} operators, on
-    the right; aternatively, the random effects design matrix can be given directly (with suitable column names).}
+    the right; aternatively, the random effects design matrix can be given directly (with suitable column names). If set to NULL, no random effects are included.}
   \item{data}{the data frame containing the variables named in
     \code{formula}.}
   \item{lambda}{the penalty parameter that controls the shrinkage of fixed terms and controls the variable selection.
@@ -80,10 +80,9 @@ Andreas Groll  \email{groll@math.lmu.de}
 }
 
 \references{
-Groll, A. and G. Tutz (2012). 
+Groll, A. and G. Tutz (2014). 
 Variable selection for generalized linear mixed models by
-L1-penalized estimation. \emph{Statistics and Computing}. To appear.
-DOI: 10.1007/s11222-012-9359-z
+L1-penalized estimation. \emph{Statistics and Computing} 24(2), 137--154.
 
 Goeman, J. J. (2010). L1 Penalized Estimation in the Cox Proportional Hazards Model.
 \emph{Biometrical Journal} 52, 70--84.
@@ -108,6 +107,15 @@ lm1 <- glmmLasso(points ~ transfer.spendings + ave.unfair.score
        lambda=10, data = soccer)
       
 summary(lm1)
+
+## similar linear model without random effects
+lm1b <- glmmLasso(points ~ transfer.spendings + ave.unfair.score 
+       + ball.possession + tackles 
+       + ave.attend + sold.out, rnd = NULL, 
+       lambda=10, data = soccer)
+      
+summary(lm1b)
+
 
 ## linear mixed model with slope on ave.attend;  
 ## the coefficient of ave.attend is not penalized;

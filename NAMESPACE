@@ -1,5 +1,6 @@
 importFrom(minqa, bobyqa)   
 import(stats)
+import(graphics)
 S3method(print, glmmLasso)
 S3method(summary, glmmLasso)
 S3method(predict, glmmLasso)
