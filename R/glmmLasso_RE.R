@@ -4866,6 +4866,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
       ret.obj$lambda.max<-lambda.max
       ret.obj$score.pure<-score.pure
       ret.obj$logLik.vec<-logLik.vec
+      ret.obj$rnd <- rnd
       return(ret.obj)
     }  
   }

@@ -169,7 +169,7 @@ summary.glmmLasso <- function(object, ...)
                z.value = zval,
                p.value = 2*pnorm(-abs(zval)))
   res <- list(call=object$call,
-              coefficients=TAB,smooth.eff=colnames(object$B),StdDev=object$StdDev)
+              coefficients=TAB,smooth.eff=colnames(object$B),StdDev=object$StdDev,rnd=object$rnd)
   class(res) <- "summary.glmmLasso"
   res
 }
