@@ -1,13 +1,13 @@
-6b6a4cac285d40587aba05a124751827 *DESCRIPTION
+e94f4186b7ce308453cbf81fafb1068e *DESCRIPTION
 694d6d14c64b24c0df08dfe75540ac1b *NAMESPACE
 ec16bb6a2b964a86a40218690d990f2f *R/bs.design.r
 705b2718839d102bf8a01f1b4be42aff *R/glmmLasso.r
 0b0c1d3609988c115ea5829ffe91b221 *R/glmmLassoControl.r
 34b3adc2e54ff0ea739d8e45995ee4ca *R/glmmLasso_RE.R
-f35e0e65b77ef643948672c200b223ce *R/glmmLasso_noRE.R
+5a48e9d528a272d75688e6d6ec1091d6 *R/glmmLasso_noRE.R
 6202f9635af46dda80ee1190ce571dde *R/glmm_final.r
 cab54ac5d78c4ef883b55662b106c7c8 *R/glmm_final.smooth.r
-f9648afab83dc29e1e7d284b7b1a0202 *R/glmm_final.smooth_noRE.R
+f60e7006364c6f324a3461869d3d8fa4 *R/glmm_final.smooth_noRE.R
 e2768fb884ad82ecb5b1ab6894f627fc *R/glmm_final_multi_random.r
 38cc3c06cc8f059c532dc8f8cabf5041 *R/glmm_final_multi_random_smooth.r
 3dcf4287f16d3224bf146aeb706e0aa4 *R/glmm_final_noRE.R
@@ -16,6 +16,6 @@ b2215804336d8b8742c1750f23f523ed *R/likelihood.r
 c58f41427b397e3dcf0d253af267875b *data/soccer.rda
 338c3ca1e0d8420841dec7fea8673afa *demo/00Index
 01ff58ff7a247012eaa3f80adffd52c7 *demo/glmmLasso-soccer.r
-5f6fc59958a1215c3dcc0c7f653c6135 *man/glmmLasso.rd
+8d1453cee58b008863bdffe327801fec *man/glmmLasso.rd
 2c447d1cf1ee7f61c22cd2c71a71aff6 *man/glmmLassoControl.rd
 d5a5f69a0b26ccbded0409f14c81992a *man/soccer.Rd

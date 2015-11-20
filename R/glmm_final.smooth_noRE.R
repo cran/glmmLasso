@@ -1,4 +1,4 @@
-glmm_final_smooth_noRE<-function(y,X,Phi,W,penal.vec,Delta_start,steps=1000,family,overdispersion,
+glmm_final_smooth_noRE<-function(y,X,Phi,penal.vec,Delta_start,steps=1000,family,overdispersion,
                             phi,nue=1,print.iter.final=FALSE,eps.final=1e-5)
 {
 dim.smooth<-dim(Phi)[2]  
@@ -66,7 +66,7 @@ D<-as.vector(family$mu.eta(Eta))
 
 if (overdispersion)
 {  
-  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1.old
+  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
   InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
   if(class(InvFisher)=="try-error")
     InvFisher<-try(solve(F_gross),silent=TRUE)  
@@ -86,9 +86,6 @@ phi<-(sum((y-Mu)^2/Mu))/(N-sum(diag(FinalHat)))
 Sigma<-Sigma*phi
 }
 
-  P1<-c(rep(0,lin),penal.vec)
-  P1<-diag(P1)
-
 score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
@@ -105,7 +102,6 @@ if(class(InvFisher)=="try-error")
 
 Eta.ma[2,]<-Eta
 
-P1.old.temp<-P1.old
 ###############################################################################################################################################
 ################################################################### Main Iteration ###################################################################
 eps<-eps.final*sqrt(length(Delta_r))
@@ -119,7 +115,6 @@ if(print.iter.final)
 half.index<-0
 solve.test<-FALSE
 
-P1.old<-P1
 
 Delta_r<-InvFisher%*%score_vec
 ######### big while loop for testing if the update leads to Fisher matrix which can be inverted
@@ -130,10 +125,9 @@ while(!solve.test)
 solve.test2<-FALSE  
 while(!solve.test2)
 {  
-if(half.index>100)
-{
-half.index<-Inf;P1.old<-P1.old.temp
-}
+ if(half.index>100)
+ half.index<-Inf
+
 Delta[l,]<-Delta[l-1,]+nue*(0.5^half.index)*Delta_r
 
 Eta<-Z_alles%*%Delta[l,]
@@ -143,7 +137,7 @@ D<-as.vector(family$mu.eta(Eta))
 
 if (overdispersion)
 {  
-  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1.old
+  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
   InvFisher2<-try(chol2inv(chol(F_gross)),silent=TRUE)
   if(class(InvFisher2)=="try-error")
     InvFisher2<-try(solve(F_gross),silent=TRUE)  
@@ -170,10 +164,6 @@ phi<-(sum((y-Mu)^2/Mu))/(N-sum(diag(FinalHat)))
 Sigma<-Sigma*phi
 }
 
-
-  P1<-c(rep(0,lin),penal.vec)
-  P1<-diag(P1)
-
 score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l,]
 F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 
@@ -189,8 +179,6 @@ if(class(InvFisher)=="try-error")
 }
 
 Eta.ma[l+1,]<-Eta
-
-P1.old.temp<-P1.old
 
 finish<-(sqrt(sum((Eta.ma[l,]-Eta.ma[l+1,])^2))/sqrt(sum((Eta.ma[l,])^2))<eps)
 finish2<-(sqrt(sum((Eta.ma[l-1,]-Eta.ma[l+1,])^2))/sqrt(sum((Eta.ma[l-1,])^2))<eps)
@@ -213,7 +201,7 @@ if(!solve.test)
   
   if (overdispersion)
   {  
-    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1.old
+    F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
     InvFisher2<-try(chol2inv(chol(F_gross)),silent=TRUE)
     if(class(InvFisher2)=="try-error")
       InvFisher2<-try(solve(F_gross),silent=TRUE)  

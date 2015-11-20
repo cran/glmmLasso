@@ -394,7 +394,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
               Z_aktuell<-Z_alles[,active]
               lin_akt<-q+sum(!is.element(Delta[l,(q+1):lin],0))
               
-              if (control$method=="EM" || control$overdispersion)
+              if (control$overdispersion)
               {  
                F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*1/Sigma*D)
                
@@ -489,10 +489,6 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
           Eta.old<-Eta
         }}
       
-      
-      FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
-      df<-sum(diag(FinalHat.df))
-      
       conv.step<-l
       phi.med<-phi
       
@@ -553,6 +549,17 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         complexity<-glmm_fin$complexity
       }else{
         glmm_fin<-list()
+        F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*1/Sigma*D)
+        InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
+        if(class(InvFisher2)=="try-error")
+          InvFisher2<-try(solve(F_gross),silent=T)
+        if(class(InvFisher2)!="try-error")
+        {  
+        FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
+        df<-sum(diag(FinalHat.df))
+        }else{
+        df <- NA
+        }
         complexity<-df
       }
       
@@ -575,7 +582,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
       aic<-NaN
       bic<-NaN
       
-      if (is.element(family$family,c("gaussian", "binomial", "poisson"))) 
+      if(is.element(family$family,c("gaussian", "binomial", "poisson"))) 
       {
         
         loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F)
@@ -1043,8 +1050,6 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
           Eta.old<-Eta
         }}
       
-      FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
-      df<-sum(diag(FinalHat.df))
       
       ######## Final calculation
       conv.step<-l
@@ -1110,6 +1115,18 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         complexity<-glmm_fin$complexity
       }else{
         glmm_fin<-list()
+        P_akt<-c(rep(0,lin_akt),penal.vec)
+        F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*1/Sigma*D)+diag(P_akt)
+        InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
+        if(class(InvFisher2)=="try-error")
+          InvFisher2<-try(solve(F_gross),silent=T)
+        if(class(InvFisher2)!="try-error")
+        {  
+          FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
+          df<-sum(diag(FinalHat.df))
+        }else{
+          df <- NA
+        }
         complexity<-df
         
         lin_akt<-q+sum(!is.element(Delta_neu[(q+1):lin],0))
@@ -1480,16 +1497,6 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
           Eta.old<-Eta
         }}
       
-      
-            F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*1/Sigma*D)
-              InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher2)=="try-error")
-          InvFisher2<-try(solve(F_gross),silent=T)
-      
-      
-      FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
-      df<-sum(diag(FinalHat.df))
-      
       conv.step<-l
       phi.med<-phi
       
@@ -1555,6 +1562,17 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         complexity<-glmm_fin$complexity
       }else{
         glmm_fin<-list()
+        F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*1/Sigma*D)
+        InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
+        if(class(InvFisher2)=="try-error")
+          InvFisher2<-try(solve(F_gross),silent=T)
+        if(class(InvFisher2)!="try-error")
+        {  
+          FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
+          df<-sum(diag(FinalHat.df))
+        }else{
+          df <- NA
+        }
         complexity<-df
       }
       
@@ -1957,11 +1975,6 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
           Eta.old<-Eta
         }}
       
-      
-      ######## Final calculation
-      FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
-      df<-sum(diag(FinalHat.df))
-      
       conv.step<-l
       phi.med<-phi
       
@@ -1984,13 +1997,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         ############ final re-estimation
         
         glmm_fin<-try(glmm_final_smooth_noRE(y,Z_fastalles[,aaa],Phi,penal.vec,
-                                             Delta_start=Delta_neu[aaa],steps=control$maxIter,
+                                             Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth))],steps=control$maxIter,
                                              family=family,overdispersion=control$overdispersion,
                                              phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final),silent = TRUE)
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final_smooth_noRE(y,Z_fastalles[,aaa],Phi,penal.vec,
-                                                Delta_start=Delta_start[aaa],steps=control$maxIter,
+                                                Delta_start=Delta_start[c(aaa,rep(T,dim.smooth))],steps=control$maxIter,
                                                 family=family,overdispersion=control$overdispersion,
                                                 phi=control$phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final),silent = TRUE)
           if(class(glmm_fin2)!="try-error")
@@ -2026,6 +2039,18 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         complexity<-glmm_fin$complexity
       }else{
         glmm_fin<-list()
+        P_akt<-c(rep(0,lin_akt),penal.vec)
+        F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*1/Sigma*D)+diag(P_akt)
+        InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
+        if(class(InvFisher2)=="try-error")
+          InvFisher2<-try(solve(F_gross),silent=T)
+        if(class(InvFisher2)!="try-error")
+        {  
+          FinalHat.df<-(Z_aktuell*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher2%*%t(Z_aktuell*sqrt(D*1/Sigma*D*1/Sigma))
+          df<-sum(diag(FinalHat.df))
+        }else{
+          df <- NA
+        }
         complexity<-df
         
         lin_akt<-q+sum(!is.element(Delta_neu[(q+1):lin],0))
@@ -2075,7 +2100,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
       
       if (is.element(family$family,c("gaussian", "binomial", "poisson"))) 
       {
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T)
+        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F)
         
         if(control$complexity!="hat.matrix")  
         {  
