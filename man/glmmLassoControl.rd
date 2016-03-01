@@ -9,7 +9,8 @@
 \usage{
 
 glmmLassoControl(nue=1,index=NULL,smooth=NULL, start=NULL, q_start=NULL, 
-                 phi_start=NULL, steps=1000, method="EM", overdispersion=FALSE,     
+                 center = TRUE, standardize = TRUE, steps=1000, 
+                 method="EM", overdispersion=FALSE,     
                  epsilon=1e-4, maxIter=200, print.iter=FALSE, 
                  print.iter.final=FALSE, method.final="EM", 
                  eps.final=1e-4, Q.fac=5, complexity="hat.matrix",...)
@@ -21,7 +22,11 @@ glmmLassoControl(nue=1,index=NULL,smooth=NULL, start=NULL, q_start=NULL,
   \item{smooth}{a list specifying the formula of the smooth terms, together with the number of basis functions \code{nbasis}, the degree of the B-splines \code{spline.degree}, the order of differences that is used for penalization \code{diff.ord} and finally a correspodning penalty parameter \code{penal}.}
   \item{start}{a vector containing starting values for fixed and random effects of suitable length. Default is a vector full of zeros.}
   \item{q_start}{a scalar or matrix of suitable dimension, specifying starting values for the random-effects variance-covariance matrix. Default is a scalar 0.1 or diagonal matrix with 0.1 in the diagonal, depending on the dimension of the random effects.}
-  \item{phi_start}{a scalar specifying the starting value of the scale parameter. Default is 1.}
+  \item{center}{logical. If true, the columns of the design matrix will be
+    centered (except a possible intercept column).}
+  \item{standardize}{logical. If true, the design matrix will be
+    blockwise orthonormalized such that for each block \eqn{X^TX = n 1}
+         (*after* possible centering).}
   \item{steps}{the number of iterations. Default is 1000.}
   \item{method}{two methods for the computation of the random-effects variance-covariance parameter estimates can be chosen, an EM-type estimate and an REML-type estimate. The REML-type estimate uses the \code{nlminb} or the \code{bobyqa} function for optimization, depending on the dimension of the random effects. Default is \code{EM}.}
  \item{overdispersion}{logical scalar. If \code{FALSE}, no scale parameter is derived, if \code{TRUE}, in each             iteration a scale parameter is estimated by use of Pearson residuals. 

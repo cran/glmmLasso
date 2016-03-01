@@ -3,7 +3,7 @@ data("soccer")
 ## generalized additive mixed model
 ## grid for the smoothing parameter
 
-## center all metric variables
+## center all metric variables so that also the starting values with glmmPQL are in the correct scaling
 
 soccer[,c(4,5,9:16)]<-scale(soccer[,c(4,5,9:16)],center=T,scale=T)
 soccer<-data.frame(soccer)
@@ -32,7 +32,7 @@ print(paste("Iteration ", j,sep=""))
 glm1 <- try(glmmLasso(points~transfer.spendings  
         + ave.unfair.score + ball.possession
         + tackles + ave.attend + sold.out, rnd = list(team=~1),  
-        family = family, data = soccer, lambda=lambda[j],switch.NR=F,final.re=TRUE,
+        family = family, data = soccer, lambda=lambda[j],switch.NR=T,final.re=TRUE,
         control=list(start=Delta.start,q_start=Q.start)), silent=TRUE)  
 
 
@@ -66,7 +66,7 @@ summary(glm1_final)
 set.seed(123)
 N<-dim(soccer)[1]
 ind<-sample(N,N)
-lambda <- seq(500,0,by=-20)
+lambda <- seq(500,0,by=-5)
 
 kk<-5
 nk <- floor(N/kk)

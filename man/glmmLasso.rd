@@ -14,8 +14,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.3.7\cr
-Date: \tab 2015-11-20\cr
+Version: \tab 1.4.0\cr
+Date: \tab 2016-02-29\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -23,8 +23,8 @@ for loading a dataset type data(nameofdataset)
 }
 
 \usage{
-glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL, 
-          switch.NR=TRUE, final.re=FALSE, control = list())
+glmmLasso(fix=formula, rnd=formula, data, lambda, family = gaussian(link="identity"), 
+          switch.NR=FALSE, final.re=FALSE, control = list())
 }     
 \arguments{
   \item{fix}{a two-sided linear formula object describing the
@@ -43,7 +43,7 @@ glmmLasso(fix=formula, rnd=formula, data, lambda, family = NULL,
  e.g. by use of information criteria or cross validation. (See details or the quick demo for an example.)} 
   \item{family}{
     a GLM family, see \code{\link[stats]{glm}} and
-    \code{\link[stats]{family}}. If \code{family} is missing then a
+    \code{\link[stats]{family}}. Also ordinal response models can be fitted: use \code{family=\link{acat}()} and \code{family=\link{cumulative}()} for the fitting of an adjacent category or cumulative model, respectively. If \code{family} is missing then a
     linear mixed model is fit; otherwise a generalized linear mixed
     model is fit.}
   \item{switch.NR}{logical. Should the algorithm swith to a Newton-Raphson update step, when reasonable? Default is FALSE.}
@@ -55,7 +55,7 @@ The \code{predict} function uses also estimates of random effects for prediction
 plots the smooth terms, if any have been specified. 
 
    \item{call}{a list containing an image of the \code{glmmLasso} call that produced the object.}  
-  \item{coefficients}{a vector containing the estimated fixed effects}
+  \item{coefficients}{a vector containing the estimated fixed effects. By default the covariates are standardized/centered within the procedure (see \code{\link{glmmLassoControl}}), so the coefficients are transformed back to the original scale.}
   \item{smooth}{a vector containing the estimated spline coefficients, if smooth terms have been specified.}  
   \item{ranef}{a vector containing the estimated random effects.}
   \item{StdDev}{a scalar or matrix containing the estimates of the random effects standard deviation or variance-covariance parameters, respectively.}
@@ -90,13 +90,12 @@ Goeman, J. J. (2010). L1 Penalized Estimation in the Cox Proportional Hazards Mo
 
 
 \seealso{
-\code{\link{glmmLassoControl},\link{soccer}}
+\code{\link{glmmLassoControl},\link{soccer},\link{knee}}
 }
 \examples{
-
+\dontrun{
 data("soccer")
 
-## center all metric variables
 soccer[,c(4,5,9:16)]<-scale(soccer[,c(4,5,9:16)],center=TRUE,scale=TRUE)
 soccer<-data.frame(soccer)
 
@@ -132,7 +131,7 @@ summary(lm2)
 lm3 <- glmmLasso(points ~ transfer.spendings + as.factor(red.card)  
        + as.factor(yellow.red.card) + ball.possession 
        + tackles + ave.attend + sold.out, rnd = list(team=~1), 
-       data = soccer, lambda=10, final.re=TRUE,
+       data = soccer, lambda=100, final.re=TRUE,
        control = list(print.iter=TRUE,print.iter.final=TRUE))
 
 summary(lm3)
@@ -160,8 +159,32 @@ summary(glm2)
  
 plot(glm2,plot.data=FALSE)        
 
+#####################
+#####################
+#####################
+
+data(knee)
+
+knee[,c(2,4:6)]<-scale(knee[,c(2,4:6)],center=TRUE,scale=TRUE)
+knee<-data.frame(knee)
+
+## fit cumulative model
+glm3 <- glmmLasso(pain ~ time + th + age + sex, rnd = NULL,  
+        family = cumulative(), data = knee, lambda=10,
+        switch.NR=TRUE, control=list(print.iter=TRUE)) 
+
+summary(glm3)
+
+## fit adjacent category model
+glm4 <- glmmLasso(pain ~ time + th + age + sex, rnd = NULL,  
+        family = acat(), data = knee, lambda=10,
+        switch.NR=TRUE, control=list(print.iter=TRUE)) 
+
+summary(glm4)
+
+
 # see also demo("glmmLasso-soccer")
-}
+}}
 \keyword{
 Lasso, Shrinkage, Variable selection, Generalized linear mixed model
 }

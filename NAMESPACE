@@ -1,4 +1,5 @@
 importFrom(minqa, bobyqa)   
+importFrom(Matrix, bdiag)   
 import(stats)
 import(graphics)
 S3method(print, glmmLasso)
@@ -6,5 +7,5 @@ S3method(summary, glmmLasso)
 S3method(predict, glmmLasso)
 S3method(plot, glmmLasso)
 S3method(print, summary.glmmLasso)
-export(glmmLasso, glmmLassoControl)
-S3method(glmmLasso,formula)
+export(glmmLasso, glmmLassoControl, acat, cumulative)
+

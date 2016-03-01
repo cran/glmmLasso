@@ -1,21 +1,26 @@
-glmm_final_multi_random<-function(y,X,W,k,q_start,Delta_start,s,n,steps=1000,family,method,
+glmm_final_multi_random<-function(y,X,W,k,q_start,K,Delta_start,s,n,steps=1000,family,method,
                                   overdispersion,phi,nue=1,rnd.len,print.iter.final=FALSE,
                                   eps.final=1e-5,Q.min=1e-13,Q.max=20,Q.fac=5)
 {
 N<-length(y)
 lin<-ncol(as.matrix(X))
 Eta<-cbind(X,W)%*%Delta_start
-Mu<-as.vector(family$linkinv(Eta))
-Sigma<-as.vector(family$variance(Mu))
-if(overdispersion)
-  Sigma<-Sigma*phi
-D<-as.vector(family$mu.eta(Eta))
-W0_inv<-D*1/Sigma*D
+
+if(is.null(family$multivariate)){
+  D<-family$mu.eta(Eta)
+  Mu<-family$linkinv(Eta)
+  SigmaInv <- 1/family$variance(Mu)
+}else{
+  Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
+  Mu_cat <- family$linkinv(Eta_cat)
+  D <- family$deriv.mat(Mu_cat)
+  SigmaInv <- family$SigmaInv(Mu_cat)
+  Mu <- c(t(Mu_cat))
+}
 
 if(print.iter.final)
   message("Final Re-estimation Iteration ", 1)
 #print(paste("Final Re-estimation Iteration ", 1,sep=""))
-
 
 Z_alles<-cbind(X,W)
 
@@ -38,8 +43,6 @@ P1[(lin+(jf-1)*s[1]+1):(lin+jf*s[1]),(lin+(jf-1)*s[1]+1):(lin+jf*s[1])]<-inv.act
      }
 }
 
-
-
 Delta<-matrix(0,steps,(lin+s%*%n))
 Eta.ma<-matrix(0,steps+1,N)
 Eta.ma[1,]<-Eta
@@ -50,8 +53,14 @@ Q[[1]]<-q_start
 l=1
 opt<-steps
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
-F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+if(is.null(family$multivariate)){
+  D <- drop(D);SigmaInv <- drop(SigmaInv)
+  score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
+  F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1
+}else{
+  score_vec <- t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+  F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1
+}
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
 if(class(InvFisher)=="try-error")
@@ -60,6 +69,8 @@ InvFisher<-solve(F_gross)
 half.index<-0
 solve.test<-FALSE
 Delta_r<-InvFisher%*%score_vec
+
+P1.old<-P1
 
 ######### big while loop for testing if the update leads to Fisher matrix which can be inverted
 while(!solve.test)
@@ -72,13 +83,26 @@ Delta[1,]<-Delta_start+nue*(0.5^half.index)*Delta_r
 
 Eta<-Z_alles%*%Delta[1,]
 
-Mu<-as.vector(family$linkinv(Eta))
-Sigma<-as.vector(family$variance(Mu))
-D<-as.vector(family$mu.eta(Eta))
+if(is.null(family$multivariate)){
+  D<-family$mu.eta(Eta)
+  Mu<-family$linkinv(Eta)
+  SigmaInv <- 1/family$variance(Mu)
+}else{
+  Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
+  Mu_cat <- family$linkinv(Eta_cat)
+  D <- family$deriv.mat(Mu_cat)
+  SigmaInv <- family$SigmaInv(Mu_cat)
+  Mu <- c(t(Mu_cat))
+}
 
-if (method=="EM" || overdispersion)
-{  
-  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+if (method=="EM")
+{ 
+  if(is.null(family$multivariate)){
+    D <- drop(D);SigmaInv <- drop(SigmaInv)
+    F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1.old
+  }else{
+    F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1.old
+  }
   InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
   if(class(InvFisher)=="try-error")
     InvFisher<-try(solve(F_gross),silent=TRUE)  
@@ -109,8 +133,12 @@ if (method=="EM")
      }
 
 }else{
-Eta_tilde<-Eta+(y-Mu)*1/D
-
+  if(is.null(family$multivariate)){
+    Eta_tilde<-Eta+(y-Mu)/D
+  }else{
+    Eta_tilde<-Eta+solve(D)%*%(y-Mu)
+  }
+  
 Betadach<-Delta[1,1:lin]
 
    if(all(s==1))
@@ -118,7 +146,7 @@ Betadach<-Delta[1,1:lin]
    q_start_vec<-diag(q_start)
    upp<-rep(Q.fac*Q.max,sum(s))
    low<-rep((1/Q.fac)*Q.min,sum(s))
-   optim.obj<-try(bobyqa(sqrt(q_start_vec),likelihood_diag,D=D,Sigma=Sigma,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
+   optim.obj<-try(bobyqa(sqrt(q_start_vec),likelihood_diag,D=D,SigmaInv=SigmaInv,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
    Q1<-diag(optim.obj$par)^2
    }else{
    q_start_vec<-c(diag(q_start)[1:s[1]],q_start[1:s[1],1:s[1]][lower.tri(q_start[1:s[1],1:s[1]])])
@@ -132,7 +160,7 @@ Betadach<-Delta[1,1:lin]
      low<-c(low,c(rep(0,s[zu]),rep(-up1,0.5*(s[zu]^2-s[zu]))))
      }
      upp<-rep(up1,length(q_start_vec))
-     optim.obj<-try(bobyqa(q_start_vec,likelihood_block,D=D,Sigma=Sigma,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
+     optim.obj<-try(bobyqa(q_start_vec,likelihood_block,D=D,SigmaInv=SigmaInv,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
      optim.vec<-optim.obj$par
      
           Q1<-matrix(0,sum(s),sum(s))
@@ -163,16 +191,6 @@ Betadach<-Delta[1,1:lin]
 
 Q[[2]]<-Q1
 
-
-if(overdispersion)# || complexity.hatmatrix)
-{  
-FinalHat<-(Z_alles*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher%*%t(Z_alles*sqrt(D*1/Sigma*D*1/Sigma))#E-Uu
-phi<-(sum((y-Mu)^2/Mu))/(N-sum(diag(FinalHat)))
-Sigma<-Sigma*phi
-}
-
-P1.old.temp<-P1
-
 if(all(s==1))
 {
   P1<-c(rep(0,lin),rep(diag(Q1)^(-1),n))
@@ -192,8 +210,14 @@ if(all(s==1))
   }
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[1,]
-F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
+if(is.null(family$multivariate)){
+  D <- drop(D);SigmaInv <- drop(SigmaInv)
+  score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
+  F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1
+}else{
+  score_vec <- t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+  F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1
+}
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
 
@@ -209,29 +233,22 @@ if(class(InvFisher)=="try-error")
 }
 
 Eta.ma[2,]<-Eta
-
-y_dach<-as.vector(family$linkinv(Eta))
-Dev_neu<-sum(family$dev.resids(y,y_dach,wt=rep(1,N))^2)
-
-Eta.ma[2,]<-Eta
+P1.old.temp<-P1.old
 
 ###############################################################################################################################################
-################################################################### Boost ###################################################################
+######################################################################################################################################
 eps<-eps.final*sqrt(length(Delta_r))
-
 
 for (l in 2:steps)
 {
   
 if(print.iter.final)
   message("Final Re-estimation Iteration ", l)
-#print(paste("Final Re-estimation Iteration ", l,sep=""))
 
 half.index<-0
 solve.test<-FALSE
 
 P1.old<-P1
-P1.old2<-P1.old.temp
 
 Delta_r<-InvFisher%*%score_vec
 ######### big while loop for testing if the update leads to Fisher matrix which can be inverted
@@ -243,18 +260,32 @@ while(!solve.test2)
 {  
 if(half.index>500)
 {
-half.index<-Inf;P1.old<-P1.old2
+half.index<-Inf
 }
 Delta[l,]<-Delta[l-1,]+nue*(0.5^half.index)*Delta_r
 
 Eta<-Z_alles%*%Delta[l,]
-Mu<-as.vector(family$linkinv(Eta))
-Sigma<-as.vector(family$variance(Mu))
-D<-as.vector(family$mu.eta(Eta))
 
-if (method=="EM" || overdispersion)
+if(is.null(family$multivariate)){
+  D<-family$mu.eta(Eta)
+  Mu<-family$linkinv(Eta)
+  SigmaInv <- 1/family$variance(Mu)
+}else{
+  Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
+  Mu_cat <- family$linkinv(Eta_cat)
+  D <- family$deriv.mat(Mu_cat)
+  SigmaInv <- family$SigmaInv(Mu_cat)
+  Mu <- c(t(Mu_cat))
+}
+
+if (method=="EM")
 {  
-  F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1.old
+  if(is.null(family$multivariate)){
+    D <- drop(D);SigmaInv <- drop(SigmaInv)
+    F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1.old
+  }else{
+    F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1.old
+  }
   InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
   if(class(InvFisher)=="try-error")
     InvFisher<-try(solve(F_gross),silent=TRUE)  
@@ -285,9 +316,13 @@ if (method=="EM")
      }
 
 }else{
-Eta_tilde<-Eta+(y-Mu)*1/D
-
-Betadach<-Delta[l,1:lin]
+  if(is.null(family$multivariate)){
+    Eta_tilde<-Eta+(y-Mu)/D
+  }else{
+    Eta_tilde<-Eta+solve(D)%*%(y-Mu)
+  }
+  
+  Betadach<-Delta[l,1:lin]
 
    if(all(s==1))
    {
@@ -296,7 +331,7 @@ Betadach<-Delta[l,1:lin]
    min1<-min(min(upp),(1/Q.fac)*min(Q1))
    upp<-rep(up1,sum(s))
    low<-rep(min1,sum(s))
-   optim.obj<-try(bobyqa(sqrt(Q1_vec),likelihood_diag,D=D,Sigma=Sigma,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
+   optim.obj<-try(bobyqa(sqrt(Q1_vec),likelihood_diag,D=D,SigmaInv=SigmaInv,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
    Q1<-diag(optim.obj$par)^2
    }else{
    Q1_vec<-c(diag(Q1)[1:s[1]],Q1[1:s[1],1:s[1]][lower.tri(Q1[1:s[1],1:s[1]])])
@@ -310,7 +345,7 @@ Betadach<-Delta[l,1:lin]
      low<-c(low,c(rep(0,s[zu]),rep(-up1,0.5*(s[zu]^2-s[zu]))))
      }
      upp<-rep(up1,length(Q1_vec))
-     optim.obj<-try(bobyqa(Q1_vec,likelihood_block,D=D,Sigma=Sigma,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
+     optim.obj<-try(bobyqa(Q1_vec,likelihood_block,D=D,SigmaInv=SigmaInv,X=X,X_aktuell=X,Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
      optim.vec<-optim.obj$par
      
      Q1<-matrix(0,sum(s),sum(s))
@@ -342,18 +377,6 @@ Betadach<-Delta[l,1:lin]
 
 Q[[l+1]]<-Q1
 
-y_dach<-as.vector(family$linkinv(Eta))
-
-FinalHat<-(Z_alles*sqrt(Sigma*D*1/Sigma*D))%*%InvFisher%*%t(Z_alles*sqrt(D*1/Sigma*D*1/Sigma))#E-Uu
-complexity<-sum(diag(FinalHat))
-if(overdispersion)
-{
-  phi<-(sum((y-Mu)^2/Mu))/(N-complexity)
-Sigma<-Sigma*phi
-}
-
-P1.old.temp<-P1.old
-
 if(all(s==1))
 {
   P1<-c(rep(0,lin),rep(diag(Q1)^(-1),n))
@@ -373,10 +396,16 @@ if(all(s==1))
   }
 }
 
-score_vec<-t(Z_alles)%*%((y-Mu)*D*1/Sigma)-P1%*%Delta[l-1,]
-F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
-
-  InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
+if(is.null(family$multivariate)){
+  D <- drop(D);SigmaInv <- drop(SigmaInv)
+  score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[l,]
+  F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1
+}else{
+  score_vec <- t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[l,]
+  F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1
+}
+ 
+ InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
   if(class(InvFisher)=="try-error")
     InvFisher<-try(solve(F_gross),silent=TRUE)  
   if(class(InvFisher)=="try-error")
@@ -388,6 +417,7 @@ F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)+P1
 }
 
 Eta.ma[l+1,]<-Eta
+P1.old.temp<-P1.old
 
 finish<-(sqrt(sum((Eta.ma[l,]-Eta.ma[l+1,])^2))/sqrt(sum((Eta.ma[l,])^2))<eps)
 finish2<-(sqrt(sum((Eta.ma[l-1,]-Eta.ma[l+1,])^2))/sqrt(sum((Eta.ma[l-1,])^2))<eps)
@@ -396,16 +426,24 @@ if(finish ||  finish2)
   break
 
 }
-
-#print(paste("Final Iteration =", l,sep=""))
-
-
 opt<-l
+
+if(is.null(family$multivariate)){
+  W_opt <- D*SigmaInv*D
+  FinalHat<-(Z_alles*sqrt(W_opt))%*%InvFisher%*%t(Z_alles*sqrt(W_opt))
+}else{
+  W_opt <- D%*%(SigmaInv%*%t(D))
+  W_inv_t <- chol(W_opt)
+  FinalHat<-W_inv_t%*%(Z_alles%*%(InvFisher%*%(t(Z_alles)%*%t(W_inv_t))))
+}
+
+complexity<-sum(diag(FinalHat))
+
+if(overdispersion)
+  phi<-(sum((y-Mu)^2/family$variance(Mu)))/(N-complexity)
+
 Deltafinal<-Delta[l,]
 Q_final<-Q[[l+1]]
-
-  
-
 Standard_errors<-sqrt(diag(InvFisher))
 
 
@@ -430,8 +468,6 @@ if(all(s==1))
 }
 
 ranef.logLik<--0.5*t(Deltafinal[(lin+1):(lin+n%*%s)])%*%P1.ran%*%Deltafinal[(lin+1):(lin+n%*%s)]
-
-#FinalHat<-(Z_alles*sqrt(D*1/Sigma*D))%*%Inv_F_opt%*%t(Z_alles*sqrt(D*1/Sigma*D))
 
 ret.obj=list()
 ret.obj$ranef.logLik<-ranef.logLik

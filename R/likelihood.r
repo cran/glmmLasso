@@ -1,5 +1,5 @@
 ##################### likelihood function for the optimization with nlminb ###############
-likelihood_nlminb<-function(Q_breslow,D,Sigma,X,X_aktuell,Eta_tilde,Betadach,W,n)
+likelihood_nlminb<-function(Q_breslow,D,SigmaInv,X,X_aktuell,Eta_tilde,Betadach,W,n,family)
 {
 if(is.matrix(X)==FALSE)
 {
@@ -14,7 +14,11 @@ randli<-rep(0,likeliparam-1)
 randre<-rep(0,likeliparam-1)
 krit<-TRUE
 
-V<-(diag(1/(D*1/Sigma*D))+W%*%(t(W)*rep(Q_breslow,n)))
+if(is.null(family$multivariate)){
+  V<-(diag(1/(D*SigmaInv*D))+W%*%(t(W)*rep(Q_breslow,n)))
+}else{
+  V<-(D%*%SigmaInv%*%t(D))+W%*%(t(W)*rep(Q_breslow,n))
+}
 
 VVV_tilde<-det(V)
 if(VVV_tilde==0 || VVV_tilde==Inf || VVV_tilde==-Inf)
@@ -120,7 +124,7 @@ return(ret.obj)
 
 ###########
 
-likelihood<-function(q_vec,D,Sigma,X,X_aktuell,Eta_tilde,Betadach,W,n,s,k)
+likelihood<-function(q_vec,D,SigmaInv,X,X_aktuell,Eta_tilde,Betadach,W,n,s,k,family)
 {
 if(is.matrix(X)==FALSE)
 {
@@ -138,7 +142,11 @@ Q_breslow<-matrix(0,n*s,n*s)
 for (i in 1:n)
 Q_breslow[((i-1)*s+1):(i*s),((i-1)*s+1):(i*s)]<-Q_breslow1
 
-V<-(diag(1/(D*1/Sigma*D))+W%*%Q_breslow%*%t(W))
+if(is.null(family$multivariate)){
+  V<-(diag(1/(D*SigmaInv*D))+W%*%Q_breslow%*%t(W))
+}else{
+  V<-(D%*%SigmaInv%*%t(D))+W%*%Q_breslow%*%t(W)
+}
 
 VVV_tilde<-det(V)
 if(VVV_tilde==0 || VVV_tilde==Inf || VVV_tilde==-Inf)
@@ -263,7 +271,7 @@ return(ret.obj)
 ########### likelihood for diagonal
 
 
-likelihood_diag<-function(q_vec,D,Sigma,X,X_aktuell,Eta_tilde,Betadach,W,n,s,k,rnd.len)
+likelihood_diag<-function(q_vec,D,SigmaInv,X,X_aktuell,Eta_tilde,Betadach,W,n,s,k,rnd.len,family)
 {
 if(is.matrix(X)==FALSE)
 {
@@ -287,7 +295,12 @@ for(i in 1:n[ie])
 Q_breslow[((i-1)*s[ie]+1):(i*s[ie]),((i-1)*s[ie]+1):(i*s[ie])]<-Q_breslow1[(sum(s[1:(ie-1)])+1):sum(s[1:ie]),(sum(s[1:(ie-1)])+1):sum(s[1:ie])]
 }
                                                                                                                                             
-V<-(diag(1/(D*1/Sigma*D))+W%*%Q_breslow%*%t(W))
+if(is.null(family$multivariate)){
+  V<-(diag(1/(D*SigmaInv*D))+W%*%Q_breslow%*%t(W))
+}else{
+  V<-(D%*%SigmaInv%*%t(D))+W%*%Q_breslow%*%t(W)
+}
+
 
 VVV_tilde<-det(V)
 if(VVV_tilde==0 || VVV_tilde==Inf || VVV_tilde==-Inf)
@@ -408,7 +421,7 @@ return(ret.obj)
 
 ###########    likelihood for block
 
-likelihood_block<-function(q_vec,D,Sigma,X,X_aktuell,Eta_tilde,Betadach,W,n,s,k,rnd.len)
+likelihood_block<-function(q_vec,D,SigmaInv,X,X_aktuell,Eta_tilde,Betadach,W,n,s,k,rnd.len,family)
 {
 if(is.matrix(X)==FALSE)
 {
@@ -452,7 +465,11 @@ Q_breslow[((i-1)*s[ie]+1):(i*s[ie]),((i-1)*s[ie]+1):(i*s[ie])]<-Q_breslow1[(sum(
 }
 
 
-V<-(diag(1/(D*1/Sigma*D))+W%*%Q_breslow%*%t(W))
+if(is.null(family$multivariate)){
+  V<-(diag(1/(D*SigmaInv*D))+W%*%Q_breslow%*%t(W))
+}else{
+  V<-(D%*%SigmaInv%*%t(D))+W%*%Q_breslow%*%t(W)
+}
 
 VVV_tilde<-det(V)
 if(VVV_tilde==0 || VVV_tilde==Inf || VVV_tilde==-Inf)

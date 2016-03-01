@@ -34,9 +34,9 @@ The \code{soccer} data contains different covariables for the teams that played 
 \references{
 Groll, A. and G. Tutz (2012). Regularization for generalized additive mixed models by likelihood-based boosting. \emph{Methods of Information in Medicine.} 51(2), 168-177.
 
-Groll, A. and G. Tutz (2012b). Variable selection for generalized linear mixed models by
-L1-penalized estimation. \emph{Statistics and Computing}. To appear.
-DOI: 10.1007/s11222-012-9359-z
+Groll, A. and G. Tutz (2014). 
+Variable selection for generalized linear mixed models by
+L1-penalized estimation. \emph{Statistics and Computing} 24(2), 137--154.
 
 We are grateful to Jasmin Abedieh for providing the German Bundesliga data, which were part of her bachelor thesis.
 }
