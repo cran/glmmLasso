@@ -179,7 +179,7 @@ if(overdispersion)
   phi<-(sum((y-Mu)^2/family$variance(Mu)))/(N-complexity)
 
 Deltafinal<-Delta[l,]
-Standard_errors<-sqrt(diag(InvFisher))
+Standard_errors<-InvFisher
 
 
 ret.obj<-list()

@@ -493,12 +493,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         glmm_fin<-NA  
         class(glmm_fin)<-"try-error"
       }  
-      Standard_errors<-rep(NA,length(Delta_neu))
+      Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
+
       if(class(glmm_fin)!="try-error")
       {
         Delta_neu2<-Delta_neu
         Delta_neu2[aaa]<-glmm_fin$Delta
-        Standard_errors[aaa]<-glmm_fin$Standard_errors
+        Standard_errors[aaa,aaa]<-glmm_fin$Standard_errors
         phi<-glmm_fin$phi
         complexity<-glmm_fin$complexity
         Delta_neu<-Delta_neu2
@@ -516,19 +517,20 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
       }
       
       names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
-      names(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
+      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
       
       if(lin>1)
       {
         names(Delta_neu)[(dim(X)[2]+1):lin]<-colnames(U)
-        names(Standard_errors)[(dim(X)[2]+1):lin]<-colnames(U)
+        colnames(Standard_errors)[(dim(X)[2]+1):lin]<-rownames(Standard_errors)[(dim(X)[2]+1):lin]<-colnames(U)
       }
       
       colnames(Delta)<-final.names
       Delta_neu[1:lin] <- Delta_neu[1:lin][transf.names]
-      Standard_errors[1:lin] <-Standard_errors[1:lin][transf.names]
+      Standard_errors[1:lin,1:lin] <-Standard_errors[1:lin,1:lin][transf.names,transf.names]
       names(Delta_neu)[1:lin] <- transf.names
-      names(Standard_errors)[1:lin] <- transf.names
+      colnames(Standard_errors)[1:lin] <- rownames(Standard_errors)[1:lin] <- transf.names
       ## Transform the coefficients back to the original scale if the design
       ## matrix was standardized
       if(standardize){
@@ -544,10 +546,14 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
           if(class(glmm_fin)!="try-error")
-            Standard_errors[ind] <- solve(scale.pen[[j]], Standard_errors[ind,drop = FALSE])
+          {
+            Sc.help <- solve(scale.pen[[j]])
+            Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
+          }
         }
       }
       
+      Standard_errors <- sqrt(diag(Standard_errors))
       ## Need to adjust intercept if we have performed centering
       if(center){
         Delta_neu[intercept.which] <- Delta_neu[intercept.which] -
@@ -951,8 +957,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         glmm_fin<-NA  
         class(glmm_fin)<-"try-error"
       }  
-      
-      Standard_errors<-rep(NA,length(Delta_neu))
+      Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
       if(class(glmm_fin)!="try-error")
       {
@@ -960,7 +965,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         EDF.matrix<-glmm_fin$EDF.matrix
         complexity.smooth<-sum(diag(EDF.matrix)[c(T,rep(F,sum(aaa)-1),rep(T,dim.smooth))])  
         Delta_neu2[c(aaa,rep(T,dim.smooth))]<-glmm_fin$Delta
-        Standard_errors[c(aaa,rep(T,dim.smooth))]<-glmm_fin$Standard_errors
+        Standard_errors[c(aaa,rep(T,dim.smooth)),c(aaa,rep(T,dim.smooth))]<-glmm_fin$Standard_errors
         phi<-glmm_fin$phi
         complexity<-glmm_fin$complexity
         Delta_neu<-Delta_neu2
@@ -1008,22 +1013,23 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         complexity.smooth<-dim.smooth
 
       names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
-      names(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
+      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
       
       if(lin>1)
       {
         names(Delta_neu)[(dim(X)[2]+1):lin]<-colnames(U)
-        names(Standard_errors)[(dim(X)[2]+1):lin]<-colnames(U)
+        colnames(Standard_errors)[(dim(X)[2]+1):lin]<-rownames(Standard_errors)[(dim(X)[2]+1):lin]<-colnames(U)
       }
       
       names(Delta_neu)[(lin+1):(lin+dim.smooth)]<-colnames(Phi)
-      names(Standard_errors)[(lin+1):(lin+dim.smooth)]<-colnames(Phi)
+      colnames(Standard_errors)[(lin+1):(lin+dim.smooth)]<-rownames(Standard_errors)[(lin+1):(lin+dim.smooth)]<-colnames(Phi)
       colnames(Delta)<-c(old.names,colnames(Phi))
       
       Delta_neu[1:lin] <- Delta_neu[1:lin][transf.names]
-      Standard_errors[1:lin] <-Standard_errors[1:lin][transf.names]
+      Standard_errors[1:lin,1:lin] <-Standard_errors[1:lin,1:lin][transf.names,transf.names]
       names(Delta_neu)[1:lin] <- transf.names
-      names(Standard_errors)[1:lin] <- transf.names
+      colnames(Standard_errors)[1:lin] <- rownames(Standard_errors)[1:lin] <- transf.names
       ## Transform the coefficients back to the original scale if the design
       ## matrix was standardized
       if(standardize){
@@ -1039,10 +1045,14 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
           if(class(glmm_fin)!="try-error")
-            Standard_errors[ind] <- solve(scale.pen[[j]], Standard_errors[ind,drop = FALSE])
+          {
+            Sc.help <- solve(scale.pen[[j]])
+            Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
+          }
         }
       }
       
+      Standard_errors <- sqrt(diag(Standard_errors))
       ## Need to adjust intercept if we have performed centering
       if(center){
         Delta_neu[intercept.which] <- Delta_neu[intercept.which] -
@@ -1356,13 +1366,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         glmm_fin<-NA  
         class(glmm_fin)<-"try-error"
       }  
-      Standard_errors<-rep(NA,length(Delta_neu))
+      Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
       if(class(glmm_fin)!="try-error")
       {
         Delta_neu2<-Delta_neu
         Delta_neu2[aaa]<-glmm_fin$Delta
-        Standard_errors[aaa]<-glmm_fin$Standard_errors
+        Standard_errors[aaa,aaa]<-glmm_fin$Standard_errors
         phi<-glmm_fin$phi
         complexity<-glmm_fin$complexity
         Delta_neu<-Delta_neu2
@@ -1380,19 +1390,20 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
       }
 
       names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
-      names(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
+      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
       
       if(lin>1)
       {
         names(Delta_neu)[(dim(X)[2]+1):lin]<-colnames(U)
-        names(Standard_errors)[(dim(X)[2]+1):lin]<-colnames(U)
+        colnames(Standard_errors)[(dim(X)[2]+1):lin]<-rownames(Standard_errors)[(dim(X)[2]+1):lin]<-colnames(U)
       }
       
       colnames(Delta)<-final.names
       Delta_neu[1:lin] <- Delta_neu[1:lin][transf.names]
-      Standard_errors[1:lin] <-Standard_errors[1:lin][transf.names]
+      Standard_errors[1:lin,1:lin] <-Standard_errors[1:lin,1:lin][transf.names,transf.names]
       names(Delta_neu)[1:lin] <- transf.names
-      names(Standard_errors)[1:lin] <- transf.names
+      colnames(Standard_errors)[1:lin] <- rownames(Standard_errors)[1:lin] <- transf.names
       ## Transform the coefficients back to the original scale if the design
       ## matrix was standardized
       if(standardize){
@@ -1408,10 +1419,14 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
           if(class(glmm_fin)!="try-error")
-            Standard_errors[ind] <- solve(scale.pen[[j]], Standard_errors[ind,drop = FALSE])
+          {
+            Sc.help <- solve(scale.pen[[j]])
+            Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
+          }
         }
       }
       
+      Standard_errors <- sqrt(diag(Standard_errors))
       ## Need to adjust intercept if we have performed centering
       if(center){
         Delta_neu[intercept.which] <- Delta_neu[intercept.which] -
@@ -1767,7 +1782,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         class(glmm_fin)<-"try-error"
       }  
       
-      Standard_errors<-rep(NA,length(Delta_neu))
+      Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
       
       if(class(glmm_fin)!="try-error")
@@ -1776,7 +1791,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         EDF.matrix<-glmm_fin$EDF.matrix
         complexity.smooth<-sum(diag(EDF.matrix)[c(T,rep(F,sum(aaa)-1),rep(T,dim.smooth))])  
         Delta_neu2[c(aaa,rep(T,dim.smooth))]<-glmm_fin$Delta
-        Standard_errors[c(aaa,rep(T,dim.smooth))]<-glmm_fin$Standard_errors
+        Standard_errors[c(aaa,rep(T,dim.smooth)),c(aaa,rep(T,dim.smooth))]<-glmm_fin$Standard_errors
         phi<-glmm_fin$phi
         complexity<-glmm_fin$complexity
         Delta_neu<-Delta_neu2
@@ -1825,22 +1840,23 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
       
       
       names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
-      names(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
+      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
       
       if(lin>1)
       {
         names(Delta_neu)[(dim(X)[2]+1):lin]<-colnames(U)
-        names(Standard_errors)[(dim(X)[2]+1):lin]<-colnames(U)
+        colnames(Standard_errors)[(dim(X)[2]+1):lin]<-rownames(Standard_errors)[(dim(X)[2]+1):lin]<-colnames(U)
       }
       
       names(Delta_neu)[(lin+1):(lin+dim.smooth)]<-colnames(Phi)
-      names(Standard_errors)[(lin+1):(lin+dim.smooth)]<-colnames(Phi)
+      colnames(Standard_errors)[(lin+1):(lin+dim.smooth)]<-rownames(Standard_errors)[(lin+1):(lin+dim.smooth)]<-colnames(Phi)
       colnames(Delta)<-c(old.names,colnames(Phi))
       
       Delta_neu[1:lin] <- Delta_neu[1:lin][transf.names]
-      Standard_errors[1:lin] <-Standard_errors[1:lin][transf.names]
+      Standard_errors[1:lin,1:lin] <-Standard_errors[1:lin,1:lin][transf.names,transf.names]
       names(Delta_neu)[1:lin] <- transf.names
-      names(Standard_errors)[1:lin] <- transf.names
+      colnames(Standard_errors)[1:lin] <- rownames(Standard_errors)[1:lin] <- transf.names
       ## Transform the coefficients back to the original scale if the design
       ## matrix was standardized
       if(standardize){
@@ -1856,10 +1872,14 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
           if(class(glmm_fin)!="try-error")
-            Standard_errors[ind] <- solve(scale.pen[[j]], Standard_errors[ind,drop = FALSE])
+          {
+            Sc.help <- solve(scale.pen[[j]])
+            Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
+          }
         }
       }
       
+      Standard_errors <- sqrt(diag(Standard_errors))
       ## Need to adjust intercept if we have performed centering
       if(center){
         Delta_neu[intercept.which] <- Delta_neu[intercept.which] -

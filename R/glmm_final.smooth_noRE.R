@@ -188,7 +188,7 @@ if(overdispersion)
 
 
 Deltafinal<-Delta[l,]
-Standard_errors<-sqrt(diag(InvFisher))
+Standard_errors<-InvFisher
 
 #### compare Wood's Book on page 167
   if(is.null(family$multivariate)){

@@ -370,7 +370,7 @@ if(overdispersion)
 
 Deltafinal<-Delta[l,]
 Q_final<-Q[[l+1]]
-Standard_errors<-sqrt(diag(InvFisher))
+Standard_errors<-InvFisher
 
 #### compare Wood's Book on page 167
 if(s==1)

@@ -369,7 +369,7 @@ if(overdispersion)
 
 Deltafinal<-Delta[l,]
 Q_final<-Q[[l+1]]
-Standard_errors<-sqrt(diag(InvFisher))
+Standard_errors<-InvFisher
 
 ## compute ranef part of loglik
 if(s==1)
