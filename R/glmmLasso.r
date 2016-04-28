@@ -2,7 +2,7 @@
 ###################################################### main Lasso function #################################################################
 
 est.glmmLasso<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"),
-                        final.re=FALSE,switch.NR=T,control=list())
+                        final.re=FALSE,switch.NR=FALSE,control=list())
 {  
   if(!is.null(rnd))
   {
@@ -292,7 +292,7 @@ plot.glmmLasso <- function(x,which=NULL,plot.data=TRUE,include.icept=FALSE,ylab=
     stop("Too many smooth functions! Please specify at maximum nine.")
   
   a<-ceiling(sqrt(p))
-  b<-floor(sqrt(p))
+  b<-round(sqrt(p))
   if(b==0)
     b<-1
   

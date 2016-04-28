@@ -1,5 +1,4 @@
-est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
-                        final.re=FALSE,switch.NR=FALSE,control=list())
+est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
 {  
   if(grepl("\\*", fix[3]))
     stop("Usage of '*' not allowed in formula! Please specify the corresponding variables separately.")  
@@ -516,9 +515,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         complexity<-df
       }
       
-      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
-      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      
+      if(dim(X)[2]>0)
+      {  
+        names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+        colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      }
       
       if(lin>1)
       {
@@ -1012,9 +1015,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
       if(!(complexity.smooth>=1 && complexity.smooth<=dim.smooth))
         complexity.smooth<-dim.smooth
 
-      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
-      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      
+      if(dim(X)[2]>0)
+      {  
+        names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+        colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      }
       
       if(lin>1)
       {
@@ -1389,9 +1396,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         complexity<-df
       }
 
-      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
-      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      
+      if(dim(X)[2]>0)
+      {  
+        names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+        colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      }
       
       if(lin>1)
       {
@@ -1839,9 +1850,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family=gaussian(link = "identity"),
         complexity.smooth<-dim.smooth
       
       
-      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
-      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      
+      if(dim(X)[2]>0)
+      {  
+        names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+        colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      }
       
       if(lin>1)
       {

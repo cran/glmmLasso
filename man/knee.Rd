@@ -5,7 +5,7 @@
 \description{
 The \code{knee} data set illustrates the effect of a medical spray on the pressure pain in the knee due to sports injuries.
 }
-\usage{data(soccer)}
+\usage{data(knee)}
 \format{
   A data frame with 381 patients, each with three replicates, and the following 7 variables:
   \describe{

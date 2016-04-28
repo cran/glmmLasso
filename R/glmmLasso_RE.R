@@ -1,5 +1,4 @@
-est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"),
-                        final.re=FALSE,switch.NR=FALSE,control=list())
+est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control)
 {  
   
   control<-do.call(glmmLassoControl, control)
@@ -44,7 +43,6 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
     control$index<-c(NA,control$index)
     names(control$index)[1]<-"(Intercept)"
   }
-  
   
   index.new<-c()
   fac.variab<-logical()
@@ -112,7 +110,6 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
     }  
     orig.names <- c(paste0("theta",1:K),orig.names)
   }
-  
   
   transf.names <- colnames(X)
   center <- control$center
@@ -345,6 +342,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
     control$overdispersion<-T
   
   phi <- 1
+
   #######################################################################  
   ######################## allow switch to Newton Raphson ###############
   #######################################################################  
@@ -1388,10 +1386,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
           
         }
       }
-      
-      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
-      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      
+      if(dim(X)[2]>0)
+      {  
+        names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+        colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      }
       
       if(lin>1)
       {
@@ -1438,7 +1440,6 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
       
       aic<-NaN
       bic<-NaN
-      
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
         
@@ -1458,7 +1459,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
           complexity<-complexity+sum(Delta_neu[1:(lin)]!=0)
         }    
         aic<--2*loglik+2*complexity
-        bic<--2*loglik+log(n)*complexity
+        bic<--2*loglik+log(N)*complexity
       }else{
         warning("For the specified family (so far) no AIC and BIC are available!")  
       }
@@ -2667,9 +2668,13 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
         }
       }
       
-      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
-      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      
+      if(dim(X)[2]>0)
+      {  
+        names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+        colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      }
       
       if(lin>1)
       {
@@ -2737,7 +2742,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
           complexity<-complexity+sum(Delta_neu[1:(lin)]!=0)+complexity.smooth
         }
         aic<--2*loglik+2*complexity
-        bic<--2*loglik+log(n)*complexity
+        bic<--2*loglik+log(N)*complexity
       }else{
         warning("For the specified family (so far) no AIC and BIC are available!")  
       }
@@ -3664,10 +3669,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
           
         }
       }
-      
-      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
+      
+      if(dim(X)[2]>0)
+      {  
+      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
       colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      }
       
       if(lin>1)
       {
@@ -3733,7 +3742,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
           complexity<-complexity+sum(Delta_neu[1:(lin)]!=0)
         }      
         aic<--2*loglik+2*complexity
-        bic<--2*loglik+log(n)*complexity
+        bic<--2*loglik+log(N)*complexity
       }else{
         warning("For the specified family (so far) no AIC and BIC are available!")  
       }
@@ -4773,9 +4782,13 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
         }
       }
       
-      names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
-      colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      
+      if(dim(X)[2]>0)
+      {  
+        names(Delta_neu)[1:dim(X)[2]]<-colnames(X)
+        colnames(Standard_errors)[1:dim(X)[2]]<-rownames(Standard_errors)[1:dim(X)[2]]<-colnames(X)
+      }
       
       if(lin>1)
       {
@@ -4842,7 +4855,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"
           complexity<-complexity+sum(Delta_neu[1:(lin)]!=0)+complexity.smooth
         }      
         aic<--2*loglik+2*complexity
-        bic<--2*loglik+log(n)*complexity
+        bic<--2*loglik+log(N)*complexity
       }else{
         warning("For the specified family (so far) no AIC and BIC are available!")  
       }
