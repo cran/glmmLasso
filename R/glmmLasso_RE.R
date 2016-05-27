@@ -180,6 +180,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
   if(control$print.iter)
     message("Iteration 1")
 
+  random.factor.help <- FALSE
   if(is.list(rnd))
   {
     rnd.len<-length(rnd)
@@ -190,6 +191,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       
       trmsrnd <- terms(rnd[[1]])
       
+       
       if(!is.factor(data[,names(rnd)[1]]))
       {
         data[,names(rnd)[1]] <- as.factor(data[,names(rnd)[1]])
@@ -239,6 +241,32 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         
         trmsrnd <- terms(rnd[[zu]])
         
+        #####
+        ran.lab.vec <- attr(trmsrnd,"term.labels") 
+        random.factor.name <- character()
+
+#        browser()
+        if(length(seq_along(ran.lab.vec))>0){
+          for(er in seq_along(ran.lab.vec))
+          {  
+              if(ran.lab.vec[er] %in% colnames(data))
+              {
+                if(is.factor(data[,ran.lab.vec[er]]))
+                {
+                  random.factor.help <- TRUE
+                  random.factor.name <- c(random.factor.name,colnames(model.matrix(formula(paste0("~",ran.lab.vec[er])), data[1,]))[-1])
+                }else{
+                  random.factor.name <- c(random.factor.name,ran.lab.vec[er])
+                }
+              }else if(substr(ran.lab.vec[er],1,9)=="as.factor")
+              {
+                random.factor.help <- TRUE
+                name.help <- strsplit(strsplit(ran.lab.vec[er],"\\(")[[1]][2],"\\)")[[1]][1]
+                data[,name.help] <- as.factor(data[,name.help])
+                random.factor.name <- c(random.factor.name,colnames(model.matrix(formula(paste0("~",name.help)), data[1,]))[-1])
+              }}}
+        random.factor.name <- c(names(rnd)[zu],paste(names(rnd)[zu],random.factor.name,sep=":"))
+        #####
         if(!is.factor(data[,names(rnd)[zu]]))
         {
           data[,names(rnd)[zu]] <- as.factor(data[,names(rnd)[zu]])
@@ -255,10 +283,9 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
                                       paste(lbl, names(rnd)[zu], sep=":")
                                     }), collapse=" + "), sep="+") }
         W_start <- model.matrix(formula(newrndfrml[[zu]]), data)
-        
-        
+
         rnlabels<-terms(formula(newrndfrml[[zu]]))
-        random.labels[[zu]]<-attr(rnlabels,"term.labels")
+        if(random.factor.help) random.labels[[zu]]<-random.factor.name else random.labels[[zu]]<-attr(rnlabels,"term.labels")
         k1<-table(data[,colnames(data)==(names(rnd)[zu])])   
         n[zu]<-length(k1)
         s[zu]<-dim(W_start)[2]/n[zu]
@@ -276,7 +303,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       }
     }
     subject.names<-names(rnd)
-
+#    browser()
+    
     if(!is.null(family$multivariate))
     {
       names.of.W <- colnames(W)
@@ -3548,6 +3576,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
       
+      
       if(final.re)
       {    
         ############ final re-estimation
@@ -3639,6 +3668,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         complexity<-df
       }
 
+#      browser()
       if(rnd.len==1)
       {
         if(s==1)
