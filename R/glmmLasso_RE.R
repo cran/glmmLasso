@@ -139,8 +139,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
     if(!has.intercept & is.null(family$multivariate)) ## could be removed; already handled above
       stop("Need intercept term when using center = TRUE")
     
-    mu.x                 <- apply(X[,-intercept.which], 2, mean)
-    X[,-intercept.which] <- sweep(X[,-intercept.which], 2, mu.x)
+    mu.x                 <- apply(as.matrix(X[,-intercept.which]), 2, mean)
+    X[,-intercept.which] <- sweep(as.matrix(X[,-intercept.which]), 2, mu.x)
   }
   
   ## Standardize the design matrix -> blockwise orthonormalization
