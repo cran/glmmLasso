@@ -14,8 +14,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.4.4\cr
-Date: \tab 2016-05-28\cr
+Version: \tab 1.5.0\cr
+Date: \tab 2017-04-28\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -51,7 +51,7 @@ glmmLasso(fix=formula, rnd=formula, data, lambda, family = gaussian(link="identi
   \item{control}{a list of control values for the estimation algorithm to replace the default values returned by the function \code{\link{glmmLassoControl}}. Defaults to an empty list.}
 }
 \value{Generic functions such as \code{print}, \code{predict}, \code{plot} and \code{summary} have methods to show the results of the fit.
-The \code{predict} function uses also estimates of random effects for prediction, if possible (i.e. for known subjects of the grouping factor). The \code{plot} function 
+The \code{predict} function returns predictions on the scale of the response variable and uses also estimates of random effects for prediction, if possible (i.e. for known subjects of the grouping factor). The \code{plot} function 
 plots the smooth terms, if any have been specified. 
 
    \item{call}{a list containing an image of the \code{glmmLasso} call that produced the object.}  

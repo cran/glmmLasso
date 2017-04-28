@@ -1,6 +1,9 @@
 glmm_final_smooth_noRE<-function(y,X,Phi,penal.vec,K,Delta_start,steps=1000,family,overdispersion,
-                            phi,nue=1,print.iter.final=FALSE,eps.final=1e-5)
+                            phi,nue=1,print.iter.final=FALSE,flushit,eps.final=1e-5)
 {
+  ## Print stuff.
+  ia <- if(flushit) interactive() else FALSE
+  
 dim.smooth<-dim(Phi)[2]  
 N<-length(y)
 lin<-ncol(as.matrix(X))
@@ -19,7 +22,12 @@ if(is.null(family$multivariate)){
 }
 
 if(print.iter.final)
-  message("Final Re-estimation Iteration ", 1)
+  #     message()
+{
+  cat(if(ia) "\r" else NULL)
+  cat("\nFinal Re-estimation Iteration  1")
+  if(.Platform$OS.type != "unix" & ia) flush.console()
+}
 
 Z_alles<-cbind(X,Phi)
 
@@ -106,10 +114,14 @@ eps<-eps.final*sqrt(length(Delta_r))
 
 for (l in 2:steps)
 {
-if(print.iter.final)
-  message("Final Re-estimation Iteration ", l)
-#print(paste("Final Re-estimation Iteration ", l,sep=""))
-
+  if(print.iter.final)
+    #  message("Iteration ",l)
+  {
+    cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+    cat(paste("Final Re-estimation Iteration ",l))
+    if(.Platform$OS.type != "unix" & ia) flush.console()
+  }
+  
 half.index<-0
 solve.test<-FALSE
 

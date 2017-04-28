@@ -132,3 +132,16 @@ t.change<-function(grad,b)
   return(ret.obj)
 }
 
+correct.cat <- function(aaa,block)
+{
+  for(i in 1:length(block))
+  {
+    if(block[i]>1)
+    {
+      if(sum(aaa[(sum(block[1:(i-1)])+1):sum(block[1:i])])>0)
+        aaa[(sum(block[1:(i-1)])+1):sum(block[1:i])] <- TRUE
+    }  
+  }
+  return(aaa)
+}
+  

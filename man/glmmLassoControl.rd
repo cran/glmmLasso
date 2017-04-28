@@ -32,14 +32,14 @@ glmmLassoControl(nue=1,index=NULL,smooth=NULL, start=NULL, q_start=NULL,
  \item{overdispersion}{logical scalar. If \code{FALSE}, no scale parameter is derived, if \code{TRUE}, in each             iteration a scale parameter is estimated by use of Pearson residuals. 
        This can be used e.g. to fit overdispersed Poisson models. Default is \code{FALSE}.
        If the Gaussian family is used, overdispersion is automatically set \code{TRUE}.}
-  \item{epsilon}{controls the speed of convergence. Default is 1e-5.}
+  \item{epsilon}{controls the speed of convergence. Default is 1e-4.}
   \item{maxIter}{the number of iterations for the final Fisher scoring re-estimation procedure. Default is 200.}
     \item{print.iter}{logical. Should the number of iterations be printed? Default is FALSE.}
     \item{print.iter.final}{logical. Should the number of iterations in the final re-estimation step be printed? Default is FALSE.}
       \item{method.final}{two methods for the computation of the random-effects variance-covariance parameter estimates  
                     for the final Fisher scoring re-estimation procedure  can be chosen, an EM-type estimate and an REML-type estimate. The REML-type estimate uses the \code{bobyqa} function for optimization.
                 Default is \code{EM}.}
-\item{eps.final}{controls the speed of convergence in the final re-estimation. Default is 1e-5.}
+\item{eps.final}{controls the speed of convergence in the final re-estimation. Default is 1e-4.}
 \item{Q.fac}{Factor which controls the interval on which is searched for the optimal parameters of the random-effects variance-covariance matrix, if method.final="REML". Default is 5.}
 \item{complexity}{Character which determines how the model complexity is computed. Default is "hat.matrix", which sums up the trace of the corresponding hat matrix. Alternatively, simply the number of estimated (non-zero) parameters can be used by setting complexity="non-zero".}
 \item{...}{Futher arguments to be passed.}

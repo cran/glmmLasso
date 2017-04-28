@@ -4,6 +4,9 @@
 est.glmmLasso<-function(fix,rnd,data,lambda,family=gaussian(link = "identity"),
                         final.re=FALSE,switch.NR=FALSE,control=list())
 {  
+  if(class(data)[1]=="tbl_df")
+        data <- as.data.frame(data)
+  
   if(!is.null(rnd))
   {
     return.obj <- est.glmmLasso.RE(fix=fix,rnd=rnd,data=data,lambda=lambda,family=family,
@@ -137,9 +140,11 @@ predict.glmmLasso <- function(object,newdata=NULL,new.random.design=NULL,...)
         n<-length(k)
         
         if(s>1)
-        {for (i in 2:s)
-          subj.test<-cbind(subj.test,subj.test)
-         subj.test<-as.vector(t(subj.test))
+        {
+          subj.test<-rep(subj.test,s)
+          #for (i in 2:s)
+          #subj.test<-cbind(subj.test,subj.test)
+          subj.test<-as.vector(t(subj.test))
         }
         
         if(s>1)
@@ -209,8 +214,10 @@ predict.glmmLasso <- function(object,newdata=NULL,new.random.design=NULL,...)
           W.single[[zu]]<-W2
           
           if(s[zu]>1)
-          {for (i in 2:s[zu])
-            subj.test<-cbind(subj.test,subj.test)
+          {
+            subj.test<- rep(subj.test,s[zu]) 
+            #for (i in 2:s[zu])
+            #subj.test<-cbind(subj.test,subj.test)
            subj.test<-as.vector(t(subj.test))
           }
           subj.test.long<-c(subj.test.long,subj.test)
@@ -262,7 +269,7 @@ predict.glmmLasso <- function(object,newdata=NULL,new.random.design=NULL,...)
        stop("Wrong dimension of random effects design matrix!")
     y<- as.vector(family$linkinv(Design%*%Delta))   
   }}else{
-    y <- X%*%object$coef
+    y <- family$linkinv(X%*%object$coef)
   }
   }
   y

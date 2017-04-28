@@ -17,7 +17,14 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
   }
   
   control<-do.call(glmmLassoControl, control)
+
+  ## Print stuff.
+  if(is.null(control$flushit))
+    control$flushit <- TRUE
   
+  ia <- if(control$flushit) interactive() else FALSE
+  
+    
 #   if(!is.null(control$index))
 #   {
 #     order.vec<-order(control$index)
@@ -140,8 +147,8 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
     if(!has.intercept & is.null(family$multivariate)) ## could be removed; already handled above
       stop("Need intercept term when using center = TRUE")
     
-    mu.x                 <- apply(X[,-intercept.which], 2, mean)
-    X[,-intercept.which] <- sweep(X[,-intercept.which], 2, mu.x)
+    mu.x                 <- apply(as.matrix(X[,-intercept.which]), 2, mean)
+    X[,-intercept.which] <- sweep(as.matrix(X[,-intercept.which]), 2, mu.x)
   }
   
   ## Standardize the design matrix -> blockwise orthonormalization
@@ -162,8 +169,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
   old.names<-attr(X,"dimnames")[[2]]
 
   if(control$print.iter)
-    message("Iteration 1")
-
+    #     message()
+  {
+    cat(if(ia) "\r" else NULL)
+    cat("Iteration  1")
+    if(.Platform$OS.type != "unix" & ia) flush.console()
+  }
+  
   very.old.names<-very.old.names[!is.na(control$index)]
   
   block<-as.numeric(table(index.new[!is.na(index.new)]))
@@ -306,8 +318,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         for (l in 2:control$steps)
         {
           if(control$print.iter)
-            message("Iteration ",l)
-        
+            #  message("Iteration ",l)
+          {
+            cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+            cat(paste("Iteration ",l))
+            if(.Platform$OS.type != "unix" & ia) flush.console()
+          }
+          
           if(is.null(family$multivariate)){
             score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)
           }else{
@@ -466,14 +483,14 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           glmm_fin<-try(glmm_final_noRE(y,Z_fastalles[,aaa],K=K,
                                    Delta_start=Delta_neu[aaa],steps=control$maxIter,
                                    family=family,overdispersion=control$overdispersion,
-                                   phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final),silent = TRUE)
+                                   phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
           
           if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_noRE(y,Z_fastalles[,aaa],K=K,
                                       Delta_start=Delta_start[aaa],steps=control$maxIter,
                                       family=family,overdispersion=control$overdispersion,
-                                      phi=control$phi,print.iter.final=control$print.iter.final,
+                                      phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                       eps.final=control$eps.final),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
@@ -484,7 +501,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
 
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {
-          cat("Warning:\n")
+          cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
         }
         #######
@@ -772,8 +789,12 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         {
 
           if(control$print.iter)
-            message("Iteration ",l)
-          #print(paste("Iteration ", l,sep=""))
+            #  message("Iteration ",l)
+          {
+            cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+            cat(paste("Iteration ",l))
+            if(.Platform$OS.type != "unix" & ia) flush.console()
+          }
           
 
           P1<-c(rep(0,lin),penal.vec)
@@ -935,13 +956,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           glmm_fin<-try(glmm_final_smooth_noRE(y,Z_fastalles[,aaa],Phi,penal.vec,K=K,
                                           Delta_start=Delta_neu[aaa],steps=control$maxIter,
                                           family=family,overdispersion=control$overdispersion,
-                                          phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final),silent = TRUE)
+                                          phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
           if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_smooth_noRE(y,Z_fastalles[,aaa],Phi,penal.vec,K=K,
                                              Delta_start=Delta_start[aaa],steps=control$maxIter,
                                              family=family,overdispersion=control$overdispersion,
-                                             phi=control$phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final),silent = TRUE)
+                                             phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
               if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -951,7 +972,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
 
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {
-          cat("Warning:\n")
+          cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
         }
         
@@ -1226,8 +1247,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         {
           
           if(control$print.iter)
-            message("Iteration ",l)
-
+            #  message("Iteration ",l)
+          {
+            cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+            cat(paste("Iteration ",l))
+            if(.Platform$OS.type != "unix" & ia) flush.console()
+          }
+          
           if(is.null(family$multivariate)){
             score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)
           }else{
@@ -1345,7 +1371,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         glmm_fin<-try(glmm_final_noRE(y,Z_fastalles[,aaa],K=K,
                                       Delta_start=Delta_neu[aaa],steps=control$maxIter,
                                       family=family,overdispersion=control$overdispersion,
-                                      phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final),silent = F)
+                                      phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = F)
  
 
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
@@ -1353,7 +1379,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           glmm_fin2<-try(glmm_final_noRE(y,Z_fastalles[,aaa],K=K,
                                          Delta_start=Delta_start[aaa],steps=control$maxIter,
                                          family=family,overdispersion=control$overdispersion,
-                                         phi=control$phi,print.iter.final=control$print.iter.final,
+                                         phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                          eps.final=control$eps.final),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
@@ -1365,7 +1391,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
                   
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {
-          cat("Warning:\n")
+          cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
         }
         #######
@@ -1650,8 +1676,12 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         for (l in 2:control$steps)
         {
           if(control$print.iter)
-            message("Iteration ",l)
-          #print(paste("Iteration ", l,sep=""))
+            #  message("Iteration ",l)
+          {
+            cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+            cat(paste("Iteration ",l))
+            if(.Platform$OS.type != "unix" & ia) flush.console()
+          }
           
           P1<-c(rep(0,lin),penal.vec)
           P1<-diag(P1)
@@ -1767,13 +1797,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         glmm_fin<-try(glmm_final_smooth_noRE(y,Z_fastalles[,aaa],Phi,penal.vec,K=K,
                                              Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth))],steps=control$maxIter,
                                              family=family,overdispersion=control$overdispersion,
-                                             phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final),silent = TRUE)
+                                             phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final_smooth_noRE(y,Z_fastalles[,aaa],Phi,penal.vec,K=K,
                                                 Delta_start=Delta_start[c(aaa,rep(T,dim.smooth))],steps=control$maxIter,
                                                 family=family,overdispersion=control$overdispersion,
-                                                phi=control$phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final),silent = TRUE)
+                                                phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
           if(class(glmm_fin2)!="try-error")
             {    
               if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
@@ -1783,7 +1813,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
 
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {
-          cat("Warning:\n")
+          cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
         }
         

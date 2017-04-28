@@ -2,6 +2,13 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
 {  
   
   control<-do.call(glmmLassoControl, control)
+
+  ## Print stuff.
+  if(is.null(control$flushit))
+    control$flushit <- TRUE
+
+  ia <- if(control$flushit) interactive() else FALSE
+  
   fix.old<-fix
   
   if(!is.null(fix))
@@ -71,7 +78,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
     }
   }
   
-  if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
+
+if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
     fix.help <- update(fix,~ .+1)
     X <- model.matrix(fix.help, data)[,-1]
   }else{
@@ -116,6 +124,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
   standardize <- control$standardize
   ####### Center & Standardization
   
+  
   ## Which are the non-penalized parameters?
   any.notpen    <- any(is.na(index.new))
   inotpen.which <- which(is.na(index.new))
@@ -135,12 +144,13 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
     ipen.which <- split((1:ncol(X)), ipen)
   }
   
+
   if(center){
     if(!has.intercept & is.null(family$multivariate)) ## could be removed; already handled above
       stop("Need intercept term when using center = TRUE")
     
-    mu.x                 <- apply(X[,-intercept.which], 2, mean)
-    X[,-intercept.which] <- sweep(X[,-intercept.which], 2, mu.x)
+    mu.x                 <- apply(as.matrix(X[,-intercept.which]), 2, mean)
+    X[,-intercept.which] <- sweep(as.matrix(X[,-intercept.which]), 2, mu.x)
   }
   
   ## Standardize the design matrix -> blockwise orthonormalization
@@ -178,7 +188,12 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
   
   
   if(control$print.iter)
-    message("Iteration 1")
+#     message()
+  {
+    cat(if(ia) "\r" else NULL)
+    cat("Iteration  1")
+    if(.Platform$OS.type != "unix" & ia) flush.console()
+  }
 
   random.factor.help <- FALSE
   if(is.list(rnd))
@@ -208,9 +223,11 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
                               paste(lbl, names(rnd)[1], sep=":")
                             }), collapse=" + "), sep="+") 
       }
+        
+      data.new <- data
+      data.new[,colnames(X)] <- X
       
-      
-      W_start <- model.matrix(formula(newrndfrml), data)
+      W_start <- model.matrix(formula(newrndfrml), data.new)
       
       rnlabels<-terms(formula(newrndfrml))
       random.labels<-attr(rnlabels,"term.labels")
@@ -245,7 +262,6 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         ran.lab.vec <- attr(trmsrnd,"term.labels") 
         random.factor.name <- character()
 
-#        browser()
         if(length(seq_along(ran.lab.vec))>0){
           for(er in seq_along(ran.lab.vec))
           {  
@@ -303,8 +319,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       }
     }
     subject.names<-names(rnd)
-#    browser()
-    
+
     if(!is.null(family$multivariate))
     {
       names.of.W <- colnames(W)
@@ -507,7 +522,6 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       t_edge<-crit.obj$min.rate
       
 #      ranef.logLik<- -0.5*t(Delta_start[(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta_start[(lin+1):(lin+n%*%s)])
-
       optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
                                          Grad=score_vec,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
                                          lower = 0, upper = Inf,K=K))
@@ -643,7 +657,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           Betadach<-Delta[1,1:(lin)]     
           aktuell_vec<-!is.element(Delta[1,1:(lin)],0)
           X_aktuell<-Z_fastalles[,aktuell_vec]
-          
+ 
           if(rnd.len==1)
           {
             
@@ -873,8 +887,13 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         for (l in 2:control$steps)
         {
           if(control$print.iter)
-            message("Iteration ",l)
-
+          #  message("Iteration ",l)
+          {
+            cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+            cat(paste("Iteration ",l))
+            if(.Platform$OS.type != "unix" & ia) flush.console()
+          }
+          
           
           if(!vorz)
             tryNR<-F
@@ -1293,7 +1312,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       Qfinal<-Q[[l+1]]
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
-
+      aaa <- correct.cat(aaa,block)
+      
       if(final.re)
       {    
         ############ final re-estimation
@@ -1311,7 +1331,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=Qfinal,K=K,
                                    Delta_start=Delta_neu[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                                    family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                   phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
+                                   phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                    Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           
           if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
@@ -1319,7 +1339,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             glmm_fin2<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=q_start,K=K,
                                       Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                                       family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                      phi=control$phi,print.iter.final=control$print.iter.final,
+                                      phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                       eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
@@ -1331,14 +1351,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           glmm_fin<-try(glmm_final_multi_random(y,Z_fastalles[,aaa],W,k,q_start=Qfinal,K=K,
                                                 Delta_start=Delta_neu[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                                                 family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                                phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
+                                                phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                 eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin)=="try-error"|| glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_multi_random(y,Z_fastalles[,aaa],W,k,q_start=q_start,K=K,
                                                    Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                                                    family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                                   phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
+                                                   phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                    eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)    
             if(class(glmm_fin2)!="try-error")
             {    
@@ -1351,7 +1371,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {
-          cat("Warning:\n")
+          cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
         }
         #######
@@ -1457,6 +1477,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
           }
         }
+        if(s>1)
+          warning("Random slopes are not standardized back!")
       }
       
       Standard_errors <- sqrt(diag(Standard_errors))
@@ -1516,6 +1538,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       ret.obj$phi.med<-phi.med
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
+      ret.obj$W <- W
       ret.obj$df<-df
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
@@ -2087,7 +2110,12 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         {
 
           if(control$print.iter)
-            message("Iteration ",l)
+#            message("Iteration ",l)
+          {
+            cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+            cat(paste("Iteration ",l))
+            if(.Platform$OS.type != "unix" & ia) flush.console()
+          }
 
           if(!vorz)
             tryNR<-F
@@ -2526,6 +2554,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       Qfinal<-Q[[l+1]]
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
+      aaa <- correct.cat(aaa,block)
       
       if(final.re)
       {    
@@ -2546,14 +2575,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           glmm_fin<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,n,penal.vec,q_start=Qfinal,K=K,
                                           Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth+n%*%s))],
                                           s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                          phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
+                                          phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                           Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,n,penal.vec,q_start=q_start,K=K,
                                              Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                              s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                             phi=control$phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
+                                             phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                              Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
@@ -2565,14 +2594,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           glmm_fin<-try(glmm_final_multi_random_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=Qfinal,K=K,
                                                        Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth+n%*%s))],
                                                        s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                                       phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
+                                                       phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                                        Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_multi_random_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=q_start,K=K,
                                                           Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                                           s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                                          phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
+                                                          phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                           eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
@@ -2584,7 +2613,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {
-          cat("Warning:\n")
+          cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
         }
         
@@ -2740,6 +2769,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
           }
         }
+        if(s>1)
+          warning("Random slopes are not standardized back!")
       }
       
       Standard_errors <- sqrt(diag(Standard_errors))
@@ -2804,6 +2835,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       ret.obj$complexity.smooth<-complexity.smooth
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
+      ret.obj$W <- W
       ret.obj$df<-df
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
@@ -3239,9 +3271,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         for (l in 2:control$steps)
         {
           if(control$print.iter)
-            message("Iteration ",l)
-          #print(paste("Iteration ", l,sep=""))
+          #  message("Iteration ",l)
+          {
+            cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+            cat(paste("Iteration ",l))
+            if(.Platform$OS.type != "unix" & ia) flush.console()
+          }
           
+                    
           half.index<-0
           
           solve.test2<-FALSE  
@@ -3556,8 +3593,11 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         W_inv_t <- chol(D%*%(SigmaInv%*%t(D)))
         FinalHat<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
       }
+
       df<-sum(diag(FinalHat))
-      
+      if(abs(df)>1e+10)
+      df<-Inf
+        
       if(control$overdispersion)
         phi<-(sum((y-Mu)^2/family$variance(Mu)))/(N-df)
       
@@ -3575,7 +3615,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       Qfinal<-Q[[l+1]]
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
-      
+      aaa <- correct.cat(aaa,block)
+ #     browser()
       
       if(final.re)
       {    
@@ -3595,7 +3636,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           glmm_fin<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=Qfinal,K=K,
                                    Delta_start=Delta_neu[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                                    family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                   phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
+                                   phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                    Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           
           if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
@@ -3603,7 +3644,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             glmm_fin2<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=q_start,K=K,
                                       Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                                       family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                      phi=control$phi,print.iter.final=control$print.iter.final,
+                                      phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                       eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
@@ -3615,14 +3656,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           glmm_fin<-try(glmm_final_multi_random(y,Z_fastalles[,aaa],W,k,q_start=Qfinal,K=K,
                                                 Delta_start=Delta_neu[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                                                 family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                                phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
+                                                phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                 eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin)=="try-error"|| glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_multi_random(y,Z_fastalles[,aaa],W,k,q_start=q_start,K=K,
                                                    Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                                                    family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                                   phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
+                                                   phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                    eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)    
             if(class(glmm_fin2)!="try-error")
             {    
@@ -3634,7 +3675,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {
-          cat("Warning:\n")
+          cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
         }
         #######
@@ -3722,6 +3763,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       Standard_errors[1:lin,1:lin] <-Standard_errors[1:lin,1:lin][transf.names,transf.names]
       names(Delta_neu)[1:lin] <- transf.names
       colnames(Standard_errors)[1:lin] <- rownames(Standard_errors)[1:lin] <- transf.names
+      
+      
       ## Transform the coefficients back to the original scale if the design
       ## matrix was standardized
       if(standardize){
@@ -3742,6 +3785,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
           }
         }
+        if(s>1)
+          warning("Random slopes are not standardized back!")
       }
       
       Standard_errors <- sqrt(diag(Standard_errors))
@@ -3799,6 +3844,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       ret.obj$phi.med<-phi.med
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
+      ret.obj$W <- W
       ret.obj$df<-df
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
@@ -4293,8 +4339,12 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         for (l in 2:control$steps)
         {
           if(control$print.iter)
-            message("Iteration ",l)
-          #print(paste("Iteration ", l,sep=""))
+          #  message("Iteration ",l)
+          {
+            cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+            cat(paste("Iteration ",l))
+            if(.Platform$OS.type != "unix" & ia) flush.console()
+          }
           
           half.index<-0
           
@@ -4643,6 +4693,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       Qfinal<-Q[[l+1]]
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
+      aaa <- correct.cat(aaa,block)
       
       if(final.re)
       {    
@@ -4662,14 +4713,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           glmm_fin<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,n,penal.vec,q_start=Qfinal,K=K,
                                           Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth+n%*%s))],
                                           s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                          phi=phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
+                                          phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                           Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,n,penal.vec,q_start=q_start,K=K,
                                              Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                              s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                             phi=control$phi,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
+                                             phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                              Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
@@ -4681,14 +4732,14 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           glmm_fin<-try(glmm_final_multi_random_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=Qfinal,K=K,
                                                        Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth+n%*%s))],
                                                        s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                                       phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,eps.final=control$eps.final,
+                                                       phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                                        Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_multi_random_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=q_start,K=K,
                                                           Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                                           s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
-                                                          phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,
+                                                          phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                           eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
             if(class(glmm_fin2)!="try-error")
             {    
@@ -4700,7 +4751,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         
         if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
         {
-          cat("Warning:\n")
+          cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
         }
         
@@ -4856,6 +4907,8 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
           }
         }
+        if(s>1)
+          warning("Random slopes are not standardized back!")
       }
       
       Standard_errors <- sqrt(diag(Standard_errors))
@@ -4919,6 +4972,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       ret.obj$complexity.smooth<-complexity.smooth
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
+      ret.obj$W <- W
       ret.obj$df<-df
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max

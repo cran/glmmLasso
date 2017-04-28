@@ -1,7 +1,11 @@
 glmm_final_multi_random<-function(y,X,W,k,q_start,K,Delta_start,s,n,steps=1000,family,method,
-                                  overdispersion,phi,nue=1,rnd.len,print.iter.final=FALSE,
+                                  overdispersion,phi,nue=1,rnd.len,print.iter.final=FALSE,flushit,
                                   eps.final=1e-5,Q.min=1e-13,Q.max=20,Q.fac=5)
 {
+  
+  ## Print stuff.
+  ia <- if(flushit) interactive() else FALSE
+  
 N<-length(y)
 lin<-ncol(as.matrix(X))
 Eta<-cbind(X,W)%*%Delta_start
@@ -19,8 +23,12 @@ if(is.null(family$multivariate)){
 }
 
 if(print.iter.final)
-  message("Final Re-estimation Iteration ", 1)
-#print(paste("Final Re-estimation Iteration ", 1,sep=""))
+  #     message()
+{
+  cat(if(ia) "\r" else NULL)
+  cat("\nFinal Re-estimation Iteration  1")
+  if(.Platform$OS.type != "unix" & ia) flush.console()
+}
 
 Z_alles<-cbind(X,W)
 
@@ -242,9 +250,14 @@ eps<-eps.final*sqrt(length(Delta_r))
 for (l in 2:steps)
 {
   
-if(print.iter.final)
-  message("Final Re-estimation Iteration ", l)
-
+  if(print.iter.final)
+    #  message("Iteration ",l)
+  {
+    cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
+    cat(paste("Final Re-estimation Iteration ",l))
+    if(.Platform$OS.type != "unix" & ia) flush.console()
+  }
+  
 half.index<-0
 solve.test<-FALSE
 
