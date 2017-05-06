@@ -1312,7 +1312,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       Qfinal<-Q[[l+1]]
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
-      aaa <- correct.cat(aaa,block)
+      aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
       
       if(final.re)
       {    
@@ -2554,7 +2554,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       Qfinal<-Q[[l+1]]
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
-      aaa <- correct.cat(aaa,block)
+      aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
       
       if(final.re)
       {    
@@ -3614,9 +3614,10 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       Mu_opt<-Mu
       Qfinal<-Q[[l+1]]
       
+#      browser()
+      
       aaa<-!is.element(Delta_neu[1:(lin)],0)
-      aaa <- correct.cat(aaa,block)
- #     browser()
+      aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
       
       if(final.re)
       {    
@@ -4693,7 +4694,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       Qfinal<-Q[[l+1]]
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
-      aaa <- correct.cat(aaa,block)
+      aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
       
       if(final.re)
       {    

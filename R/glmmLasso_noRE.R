@@ -475,6 +475,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }}
       
       aaa<-!is.element(Delta_neu[1:lin],0)
+      aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
       
       if(final.re)
       {    
@@ -950,6 +951,8 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }}
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
+      aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
+      
       if(final.re)
       {    
         ############ final re-estimation
@@ -1362,12 +1365,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           df <- NA
         }}
       
+      aaa<-!is.element(Delta_neu[1:(lin)],0)
+      aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
+      
       if(final.re)
       {    
         ############ final re-estimation
-        aaa<-!is.element(Delta_neu[1:(lin)],0)
         
-
         glmm_fin<-try(glmm_final_noRE(y,Z_fastalles[,aaa],K=K,
                                       Delta_start=Delta_neu[aaa],steps=control$maxIter,
                                       family=family,overdispersion=control$overdispersion,
@@ -1789,7 +1793,8 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }}
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
-
+      aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
+      
       if(final.re)
       {    
         ############ final re-estimation
