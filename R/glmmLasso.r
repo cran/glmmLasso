@@ -105,174 +105,183 @@ print.summary.glmmLasso <- function(x, ...)
 }
 
 
-predict.glmmLasso <- function(object,newdata=NULL,new.random.design=NULL,...)
-{
-  if(is.null(newdata))
-  {
-    y<-fitted(object)
-  }else{  
-    X <- model.matrix(formula(object$fix), newdata)
-    family<-object$family
-    
-    if(!is.null(object$rnd))
-    {  
-    rnd.len<-object$rnd.len                 
-    
-   if(is.null(new.random.design))
-   {   
-    if(rnd.len==1)
-    {
-      subj.new<-levels(as.factor(newdata[,object$subject]))
-      subj.old<-levels(as.factor(object$data[,object$subject]))
-      subj.test<-is.element(subj.new,subj.old)
-      subj.ok<-subj.new[subj.test]
-      
-      krit.random<-!all(!is.element(subj.new,subj.old))
-      
-      if(krit.random)
-      {
-        W_start <- model.matrix(formula(object$newrndfrml), newdata)
-        
-        rnlabels<-terms(formula(object$newrndfrml))
-        random.labels<-attr(rnlabels,"term.labels")
-        s<-length(random.labels)
-        k<-table(newdata[,colnames(newdata)==(object$subject)])   
-        n<-length(k)
-        
-        if(s>1)
-        {
-          subj.test<-rep(subj.test,s)
-          #for (i in 2:s)
-          #subj.test<-cbind(subj.test,subj.test)
-          subj.test<-as.vector(t(subj.test))
-        }
-        
-        if(s>1)
-        {
-          W<-W_start[,seq(from=1,to=1+(s-1)*n,by=n)]
-          for (i in 2:n)
-            W<-cbind(W,W_start[,seq(from=i,to=i+(s-1)*n,by=n)])
-        }else{
-          W<-W_start
-        }
-        
-        y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))
-        rand.ok<-is.element(newdata[,object$subject],subj.ok)
-        W.neu<-W[,subj.test]
-        if(nrow(X)!=1)
-        {
-          y[rand.ok]<- family$linkinv(cbind(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok,]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(colnames(W.neu),names(object$ranef))]))}else{
-            y[rand.ok]<- family$linkinv(c(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(names(W.neu),names(object$ranef))]))}
-      }else{
-        W<-NULL
-        y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))
-      }
-      
-    }else{
-      
-      rnlabels<-list()
-      random.labels<-list()
-      s<-numeric()
-      k<-NULL   
-      n<-numeric()
-      W<- NULL
-      subj.test.long<-numeric()
-      subj.ok<-character()
-      krit.random<-logical()
-      subj.ok<-list()
-      W.single <- list()
-      
-      for(zu in 1:rnd.len)
-      {
-        subj.new<-levels(as.factor(newdata[,object$subject[zu]]))
-        subj.old<-levels(as.factor(object$data[,object$subject[zu]]))
-        subj.test<-is.element(subj.new,subj.old)
-        subj.ok[[zu]]<-subj.new[subj.test]
-        
-        krit.random[zu]<-!all(!is.element(subj.new,subj.old))
-        
-        if(krit.random[zu])
-        {
-          rnlabels[[zu]]<-terms(formula(object$newrndfrml[[zu]]))
-          random.labels[[zu]]<-attr(rnlabels[[zu]],"term.labels")
-          s[zu]<-length(random.labels[[zu]])
-          k1<-table(newdata[,colnames(newdata)==(object$subject[zu])])
-          k<-c(k,k1)   
-          n[zu]<-length(k1)
-          
-          W_start <- model.matrix(formula(object$newrndfrml[[zu]]), newdata)
-          
-          if(s[zu]>1)
-          {
-            W2<-W_start[,seq(from=1,to=1+(s[zu]-1)*n[zu],by=n[zu])]
-            for (i in 2:n[zu])
-              W2<-cbind(W2,W_start[,seq(from=i,to=i+(s[zu]-1)*n[zu],by=n[zu])])
-          }else{
-            W2<-W_start
-          }
-          W<-cbind(W,W2)
-          W.single[[zu]]<-W2
-          
-          if(s[zu]>1)
-          {
-            subj.test<- rep(subj.test,s[zu]) 
-            #for (i in 2:s[zu])
-            #subj.test<-cbind(subj.test,subj.test)
-           subj.test<-as.vector(t(subj.test))
-          }
-          subj.test.long<-c(subj.test.long,subj.test)
-        }}
-      
-      
-      dim.W.single<-rep(0,rnd.len+1)
-      for(zu in 1:rnd.len)
-      {
-        if(krit.random[zu])
-          dim.W.single[zu+1]<-dim(W.single[[zu]])[2]
-      }
-      
-      if(!all(!krit.random))
-      {
-        rand.ok<-matrix(0,dim(newdata)[1],rnd.len)
-        for(zu in 1:rnd.len)
-          rand.ok[,zu]<-is.element(newdata[,object$subject[zu]],subj.ok[[zu]])
-        
-        W.rnd<-matrix(0,dim(W)[1],dim(W)[2])
-        for(ur in 1:dim(newdata)[1])
-        {
-          for (zu in 1:rnd.len)
-          {
-            if(rand.ok[ur,zu]==1)
-              W.rnd[ur,sum(dim.W.single[1:zu])+1:sum(dim.W.single[zu+1])]<-W.single[[zu]][ur,]
-          }
-        }
-        
-        W.neu<-W.rnd[,as.logical(subj.test.long)]
-        if(!is.matrix(W.neu))
-          W.neu<-t(as.matrix(W.neu))
-        colnames(W.neu)<-colnames(W)[as.logical(subj.test.long)]
-        
-        if(dim(X)[1]!=1)
-        {
-          y<- family$linkinv(cbind(X[,is.element(colnames(X),names(object$coef))],W.neu)%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(colnames(W.neu),names(object$ranef))]))
-        }else{
-          y<- family$linkinv(c(X[,is.element(colnames(X),names(object$coef))],W.neu)%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(colnames(W.neu),names(object$ranef))]))
-        }
-        
-      }else{
-        y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))
-      }}
-  }else{
-    Design<-cbind(X,new.random.design)
-    Delta<-c(object$coef,object$ranef)
-    if(ncol(Design)!=length(Delta))
-       stop("Wrong dimension of random effects design matrix!")
-    y<- as.vector(family$linkinv(Design%*%Delta))   
-  }}else{
-    y <- family$linkinv(X%*%object$coef)
-  }
-  }
-  y
+
+predict.glmmLasso <- function(object, newdata = NULL, new.random.design = NULL, 
+	...) {
+	if (is.null(newdata)) {
+		y <- fitted(object)
+	}
+	else {
+		X <- model.matrix(formula(object$fix), newdata)
+		family <- object$family
+		if (!is.null(object$rnd)) {
+			rnd.len <- object$rnd.len
+			if (is.null(new.random.design)) {
+			  if (rnd.len == 1) {
+				subj.new <- levels(as.factor(newdata[, object$subject]))
+				subj.old <- levels(as.factor(object$data[, 
+				  object$subject]))
+				subj.test <- is.element(subj.new, subj.old)
+				subj.ok <- subj.new[subj.test]
+				krit.random <- !all(!is.element(subj.new, 
+				  subj.old))
+				if (krit.random) {
+				  W_start <- model.matrix(formula(object$newrndfrml), 
+					newdata)
+				  rnlabels <- terms(formula(object$newrndfrml))
+				  random.labels <- attr(rnlabels, "term.labels")
+				  s <- length(random.labels)
+				  k <- table(newdata[, colnames(newdata) == 
+					(object$subject)])
+				  n <- length(k)
+				  if (s > 1) {
+					subj.test <- rep(subj.test, s)
+					subj.test <- as.vector(t(subj.test))
+				  }
+				  if (s > 1) {
+					W <- W_start[, seq(from = 1, to = 1 + 
+					  (s - 1) * n, by = n)]
+					for (i in 2:n) W <- cbind(W, W_start[, 
+					  seq(from = i, to = i + (s - 1) * n, 
+						by = n)])
+				  }
+				  else {
+					W <- W_start
+				  }
+				  y <- as.vector(family$linkinv(X[, is.element(colnames(X), 
+					names(object$coef))] %*% object$coef[is.element(names(object$coef), 
+					colnames(X))]))
+				  rand.ok <- is.element(newdata[, object$subject], 
+					subj.ok)
+				  W.neu <- W[, subj.test]
+				  if (nrow(X) != 1) {
+					y[rand.ok] <- family$linkinv(cbind(X[, 
+					  is.element(colnames(X), names(object$coef))], 
+					  W.neu)[rand.ok, ] %*% c(object$coef[is.element(names(object$coef), 
+					  colnames(X))], object$ranef[match(colnames(W.neu), 
+					  names(object$ranef))]))
+				  }
+				  else {
+					y[rand.ok] <- family$linkinv(c(X[, is.element(colnames(X), 
+					  names(object$coef))], W.neu)[rand.ok] %*% 
+					  c(object$coef[is.element(names(object$coef), 
+						colnames(X))], object$ranef[match(names(W.neu), 
+						names(object$ranef))]))
+				  }
+				}
+				else {
+				  W <- NULL
+				  y <- as.vector(family$linkinv(X[, is.element(colnames(X), 
+					names(object$coef))] %*% object$coef[is.element(names(object$coef), 
+					colnames(X))]))
+				}
+			  }
+			  else {
+				rnlabels <- list()
+				random.labels <- list()
+				s <- numeric()
+				k <- NULL
+				n <- numeric()
+				W <- NULL
+				subj.test.long <- numeric()
+				subj.ok <- character()
+				krit.random <- logical()
+				subj.ok <- list()
+				W.single <- list()
+				for (zu in 1:rnd.len) {
+				  subj.new <- levels(as.factor(newdata[, 
+					object$subject[zu]]))
+				  subj.old <- levels(as.factor(object$data[, 
+					object$subject[zu]]))
+				  subj.test <- is.element(subj.new, subj.old)
+				  subj.ok[[zu]] <- subj.new[subj.test]
+				  krit.random[zu] <- !all(!is.element(subj.new, 
+					subj.old))
+				  if (krit.random[zu]) {
+					rnlabels[[zu]] <- terms(formula(object$newrndfrml[[zu]]))
+					random.labels[[zu]] <- attr(rnlabels[[zu]], 
+					  "term.labels")
+					s[zu] <- length(random.labels[[zu]])
+					k1 <- table(newdata[, colnames(newdata) == 
+					  (object$subject[zu])])
+					k <- c(k, k1)
+					n[zu] <- length(k1)
+					W_start <- model.matrix(formula(object$newrndfrml[[zu]]), 
+					  newdata)
+					if (s[zu] > 1) {
+					  W2 <- W_start[, seq(from = 1, to = 1 + 
+						(s[zu] - 1) * n[zu], by = n[zu])]
+					  for (i in 2:n[zu]) W2 <- cbind(W2, 
+						W_start[, seq(from = i, to = i + 
+						  (s[zu] - 1) * n[zu], by = n[zu])])
+					}
+					else {
+					  W2 <- W_start
+					}
+					W <- cbind(W, W2)
+					W.single[[zu]] <- W2
+					if (s[zu] > 1) {
+					  subj.test <- rep(subj.test, s[zu])
+					  subj.test <- as.vector(t(subj.test))
+					}
+					subj.test.long <- c(subj.test.long, subj.test)
+				  }
+				}
+				dim.W.single <- rep(0, rnd.len + 1)
+				for (zu in 1:rnd.len) {
+				  if (krit.random[zu]) 
+					dim.W.single[zu + 1] <- dim(W.single[[zu]])[2]
+				}
+				if (!all(!krit.random)) {
+				  rand.ok <- matrix(0, dim(newdata)[1], rnd.len)
+				  for (zu in 1:rnd.len) rand.ok[, zu] <- is.element(newdata[, 
+					object$subject[zu]], subj.ok[[zu]])
+				  W.rnd <- matrix(0, dim(W)[1], dim(W)[2])
+				  for (ur in 1:dim(newdata)[1]) {
+					for (zu in 1:rnd.len) {
+					  if (rand.ok[ur, zu] == 1) 
+						W.rnd[ur, sum(dim.W.single[1:zu]) + 
+						  1:sum(dim.W.single[zu + 1])] <- W.single[[zu]][ur, 
+						  ]
+					}
+				  }
+				  W.neu <- W.rnd[, as.logical(subj.test.long)]
+				  if (!is.matrix(W.neu)) 
+					W.neu <- t(as.matrix(W.neu))
+				  colnames(W.neu) <- colnames(W)[as.logical(subj.test.long)]
+				  if (dim(X)[1] != 1) {
+					y <- family$linkinv(cbind(X[, is.element(colnames(X), 
+					  names(object$coef))], W.neu) %*% c(object$coef[is.element(names(object$coef), 
+					  colnames(X))], object$ranef[match(colnames(W.neu), 
+					  names(object$ranef))]))
+				  }
+				  else {
+					y <- family$linkinv(c(X[, is.element(colnames(X), 
+					  names(object$coef))], W.neu) %*% c(object$coef[is.element(names(object$coef), 
+					  colnames(X))], object$ranef[match(colnames(W.neu), 
+					  names(object$ranef))]))
+				  }
+				}
+				else {
+				  y <- as.vector(family$linkinv(X[, is.element(colnames(X), 
+					names(object$coef))] %*% object$coef[is.element(names(object$coef), 
+					colnames(X))]))
+				}
+			  }
+			}
+			else {
+			  Design <- cbind(X, new.random.design)
+			  Delta <- c(object$coef, object$ranef)
+			  if (ncol(Design) != length(Delta)) 
+				stop("Wrong dimension of random effects design matrix!")
+			  y <- as.vector(family$linkinv(Design %*% Delta))
+			}
+		}
+		else {
+			y <- family$linkinv(X %*% object$coef)
+		}
+	}
+	y
 }
 
 
