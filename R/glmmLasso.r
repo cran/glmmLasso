@@ -113,7 +113,20 @@ predict.glmmLasso <- function(object, newdata = NULL, new.random.design = NULL,
 	}
 	else {
 		X <- model.matrix(formula(object$fix), newdata)
+		y.object <- model.response(model.frame(object$fix, object$data))
 		family <- object$family
+	    K <- NULL
+	    if(!is.null(family$multivariate)){
+			y.object.fac <- as.factor(y.object)
+			K <- nlevels(y.object.fac) - 1
+		}
+	    if (all(X[,1] == 1)){
+	      X <- X[,-1]
+	    }
+	    names.x <- colnames(X)
+	    theta <- matrix(rep(diag(1,K), nrow(X)), ncol=K, byrow=TRUE)
+	    X <- cbind(theta, matrix(rep(X, each=K), ncol=ncol(X)))
+	    colnames(X) <- c(paste0("theta",1:K),names.x)
 		if (!is.null(object$rnd)) {
 			rnd.len <- object$rnd.len
 			if (is.null(new.random.design)) {
