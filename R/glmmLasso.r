@@ -115,18 +115,18 @@ predict.glmmLasso <- function(object, newdata = NULL, new.random.design = NULL,
 		X <- model.matrix(formula(object$fix), newdata)
 		y.object <- model.response(model.frame(object$fix, object$data))
 		family <- object$family
-	    K <- NULL
-	    if(!is.null(family$multivariate)){
+	    if (!is.null(family$multivariate)){
+		    K <- NULL
+		    if (all(X[,1] == 1)){
+		      X <- X[,-1]
+		    }
 			y.object.fac <- as.factor(y.object)
 			K <- nlevels(y.object.fac) - 1
+		    names.x <- colnames(X)
+		    theta <- matrix(rep(diag(1, K), nrow(X)), ncol=K, byrow=TRUE)
+		    X <- cbind(theta, matrix(rep(X, each=K), ncol=ncol(X)))
+		    colnames(X) <- c(paste0("theta", 1:K), names.x)
 		}
-	    if (all(X[,1] == 1)){
-	      X <- X[,-1]
-	    }
-	    names.x <- colnames(X)
-	    theta <- matrix(rep(diag(1,K), nrow(X)), ncol=K, byrow=TRUE)
-	    X <- cbind(theta, matrix(rep(X, each=K), ncol=ncol(X)))
-	    colnames(X) <- c(paste0("theta",1:K),names.x)
 		if (!is.null(object$rnd)) {
 			rnd.len <- object$rnd.len
 			if (is.null(new.random.design)) {
@@ -141,6 +141,10 @@ predict.glmmLasso <- function(object, newdata = NULL, new.random.design = NULL,
 				if (krit.random) {
 				  W_start <- model.matrix(formula(object$newrndfrml), 
 					newdata)
+					if (!is.null(family$multivariate)){
+						W_start = do.call(rbind, replicate(K, W_start,
+										  simplify=F))
+					}
 				  rnlabels <- terms(formula(object$newrndfrml))
 				  random.labels <- attr(rnlabels, "term.labels")
 				  s <- length(random.labels)
@@ -221,6 +225,10 @@ predict.glmmLasso <- function(object, newdata = NULL, new.random.design = NULL,
 					n[zu] <- length(k1)
 					W_start <- model.matrix(formula(object$newrndfrml[[zu]]), 
 					  newdata)
+  					if (!is.null(family$multivariate)){
+  						W_start = do.call(rbind, replicate(K, W_start,
+  										  simplify=F))
+  					}
 					if (s[zu] > 1) {
 					  W2 <- W_start[, seq(from = 1, to = 1 + 
 						(s[zu] - 1) * n[zu], by = n[zu])]
