@@ -113,13 +113,13 @@ predict.glmmLasso <- function(object, newdata = NULL, new.random.design = NULL,
 	}
 	else {
 		X <- model.matrix(formula(object$fix), newdata)
-		y.object <- model.response(model.frame(object$fix, object$data))
 		family <- object$family
 	    if (!is.null(family$multivariate)){
 		    K <- NULL
 		    if (all(X[,1] == 1)){
 		      X <- X[,-1]
 		    }
+			y.object <- model.response(model.frame(object$fix, object$data))
 			y.object.fac <- as.factor(y.object)
 			K <- nlevels(y.object.fac) - 1
 		    names.x <- colnames(X)
