@@ -13,8 +13,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.5.1\cr
-Date: \tab 2017-05-05\cr
+Version: \tab 1.6.0\cr
+Date: \tab 2022-05-05\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }
@@ -75,7 +75,7 @@ effects plus the number of random effects covariance parameters that have to be 
 
 
 \author{
-Andreas Groll  \email{groll@math.lmu.de}
+Andreas Groll  \email{groll@statistik.tu-dortmund.de}
 }
 
 \references{
@@ -102,7 +102,7 @@ soccer<-data.frame(soccer)
 lm1 <- glmmLasso(points ~ transfer.spendings + ave.unfair.score 
        + ball.possession + tackles 
        + ave.attend + sold.out, rnd = list(team=~1), 
-       lambda=10, data = soccer)
+       lambda=50, data = soccer)
       
 summary(lm1)
 
@@ -110,7 +110,7 @@ summary(lm1)
 lm1b <- glmmLasso(points ~ transfer.spendings + ave.unfair.score 
        + ball.possession + tackles 
        + ave.attend + sold.out, rnd = NULL, 
-       lambda=10, data = soccer)
+       lambda=50, data = soccer)
       
 summary(lm1b)
 
@@ -141,7 +141,7 @@ glm1 <- glmmLasso(points~transfer.spendings
         + ave.unfair.score + sold.out 
         + tackles + ave.attend + ball.possession, rnd = list(team=~1),  
         family = poisson(link = log), data = soccer, lambda=100, 
-        control = list(print.iter=TRUE,start=c(1,rep(0,29)),q.start=0.7)) 
+        control = list(print.iter=TRUE,start=c(1,rep(0,29)),q_start=0.7)) 
 
 summary(glm1)
 
@@ -170,22 +170,23 @@ knee<-data.frame(knee)
 ## fit cumulative model
 glm3 <- glmmLasso(pain ~ time + th + age + sex, rnd = NULL,  
         family = cumulative(), data = knee, lambda=10,
-        switch.NR=TRUE, control=list(print.iter=TRUE)) 
+        control=list(print.iter=TRUE)) 
 
 summary(glm3)
 
 ## fit adjacent category model
 glm4 <- glmmLasso(pain ~ time + th + age + sex, rnd = NULL,  
         family = acat(), data = knee, lambda=10,
-        switch.NR=TRUE, control=list(print.iter=TRUE)) 
+        control=list(print.iter=TRUE)) 
 
 summary(glm4)
 
 
 # see also demo("glmmLasso-soccer")
 }}
-\keyword{
-Lasso, Shrinkage, Variable selection, Generalized linear mixed model
-}
+\concept{Lasso}
+\concept{Shrinkage}
+\concept{Variable selection}
+\concept{Generalized linear mixed model}
 
 

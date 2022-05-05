@@ -1,43 +1,47 @@
 est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
 {  
-  if(grepl("\\*", fix[3]))
-    stop("Usage of '*' not allowed in formula! Please specify the corresponding variables separately.")  
-  
-  fix.old<-fix
-  ic.dummy<-attr(terms(fix),"intercept")
+  trace(update.formula, at = 4,  print = FALSE,
+        tracer = quote({
+          out <- formula(terms.formula(tmp, simplify = TRUE, keep.order = TRUE))
+        }), where = asNamespace("glmmLasso"))
 
-  y <- model.response(model.frame(fix, data))
-  very.old.names<-attr(terms(fix),"term.labels")
-
-  if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
-    fix.help <- update(fix,~ .+1)
-    orig.names <- colnames(model.matrix(fix.help, data))[-1]
-  }else{
-    orig.names <- colnames(model.matrix(fix, data))
-  }
-  
   control<-do.call(glmmLassoControl, control)
-
+  
   ## Print stuff.
   if(is.null(control$flushit))
     control$flushit <- TRUE
   
   ia <- if(control$flushit) interactive() else FALSE
   
-    
-#   if(!is.null(control$index))
-#   {
-#     order.vec<-order(control$index)
-#     very.old.names<-very.old.names[order.vec]
-#     control$index<-control$index[order.vec]
-#   }else{
-#     control$index<-1:length(very.old.names)
-#   }
+  fix.old<-fix
   
+  if(!is.null(fix))
+  {  
+    if(grepl("\\*", fix[3]))
+    stop("Usage of '*' not allowed in formula! Please specify the corresponding variables separately.")  
+  
+  ic.dummy<-attr(terms(fix),"intercept")
 
-    if(is.null(control$index))
+  y <- model.response(model.frame(fix, data))
+  very.old.names<-attr(terms(fix),"term.labels")
+
+  if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
+    fix.help <- update.formula(fix,~ .+1)
+    orig.names <- colnames(model.matrix(terms(fix.help, keep.order = TRUE), data))[-1]
+  }else{
+    orig.names <- colnames(model.matrix(terms(fix, keep.order = TRUE), data))
+  }
+  
+  if(!is.null(control$index))
+  {
+    order.vec<-order(control$index)
+    very.old.names<-very.old.names[order.vec]
+    control$index<-control$index[order.vec]
+  }else{
     control$index<-1:length(very.old.names)
-
+    order.vec <-NULL
+  }
+  
   if(length(control$index)!=length(very.old.names))
     stop("Length of vector defining the grouping of the variables doesn't match with 
          the formula!")
@@ -48,9 +52,9 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
   
   if(ic.dummy==1)
   {
-    fix<-update(fix,~ .+1) 
-    control$index<-c(NA,control$index)
-    names(control$index)[1]<-"(Intercept)"
+    fix <- update.formula(fix,~ .+1) 
+    control$index <- c(NA,control$index)
+    names(control$index)[1] <- "(Intercept)"
   }
   
   index.new<-c()
@@ -81,10 +85,10 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
   }
 
   if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
-    fix.help <- update(fix,~ .+1)
-    X <- model.matrix(fix.help, data)[,-1]
+    fix.help <- update.formula(fix,~ .+1)
+    X <- model.matrix(terms(fix.help, keep.order = TRUE), data)[,-1]
   }else{
-    X <- model.matrix(fix, data)  
+    X <- model.matrix(terms(fix, keep.order = TRUE), data)  
   }
  
   K <- NULL
@@ -96,9 +100,10 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       y <- c(t(model.matrix(~0+y.fac, contrasts = list(y.fac = "contr.treatment"))[,-length(levels(y.fac))]))
     }
     if(family$family=="cumulative"){
-      get.resp <- function(x){as.numeric(as.numeric(x) <= 1:K)}
-      y <- c(sapply(y.fac,get.resp))
+      get.resp <- function(x){as.numeric(x <= 1:K)}
+      y <- c(sapply(y,get.resp))
     }
+    yhelp <- as.matrix(model.matrix(~0+y.fac, contrasts = list(y.fac = "contr.treatment")))
   }
   
   if(!is.null(family$multivariate)){
@@ -167,7 +172,18 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
   }
 
   old.names<-attr(X,"dimnames")[[2]]
-
+  ############
+  ############
+  ############
+  }else{
+    y <- control$y
+    X <- control$X
+    K <- control$K
+    index.new <- control$index.new
+    W.index <- control$W.index
+    orig.names <- transf.names <- colnames(X)
+    standardize <- center <- FALSE
+  }
   if(control$print.iter)
     #     message()
   {
@@ -187,7 +203,15 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
   lin<-ncol(X)
   
   if(is.null(control$start))
+  {
     control$start<-c(rep(0,lin))
+    if(family$family=="gaussian")
+      control$start[1] <- mean(y)
+    if(family$family=="poisson")
+      control$start[1] <- log(mean(y))
+    if(family$family=="binomial")
+      control$start[1] <- log(mean(y)/(1-mean(y)))
+  }  
   
   if(family$family=="cumulative" & all(control$start==0))
     control$start[1:K] <- ((1:K)-mean(1:K))/K
@@ -195,9 +219,12 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
   N<-length(y)
   
   beta_null<-control$start[1:lin]
-  if(is.null(attr(beta_null,"names")))
-    attr(beta_null,"names")<-orig.names
-  beta_null<-beta_null[colnames(X)]
+  # if(is.null(attr(beta_null,"names")))
+  #   attr(beta_null,"names")<-orig.names
+  # beta_null<-beta_null[colnames(X)]
+  if(!is.null(order.vec))
+    beta_null<-beta_null[c(1,order.vec+1)]
+  attr(beta_null,"names") <- colnames(X)
   
   Z_fastalles<-X
   
@@ -227,11 +254,9 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         Mu<-family$linkinv(Eta_start)
         SigmaInv <- 1/family$variance(Mu)
       }else{
-        Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-        Mu_cat <- family$linkinv(Eta_cat)
-        D <- family$deriv.mat(Mu_cat)
-        SigmaInv <- family$SigmaInv(Mu_cat)
-        Mu <- c(t(Mu_cat))
+        D <- family$deriv.mat(Eta_start,K)
+        Mu<-family$linkinv(Eta_start, K)
+        SigmaInv <- family$SigmaInv(Mu, K)
       }
       
       U<-X[,!is.na(index.new),drop=FALSE]
@@ -260,7 +285,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       if(is.null(family$multivariate)){
       score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)
       }else{
-      score_vec<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))
+      score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)
       }
       lambda.max<-max(abs(score_vec[(q+1):lin]))
       
@@ -276,7 +301,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,X=Z_alles,fixef=Delta_start[1:lin],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:lin],
                                          Grad=score_vec,family=family,lower = 0, upper = Inf,K=K))
       
       t_opt<-optim.obj$par
@@ -288,27 +313,25 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
             Delta[1,crit.obj$whichmin+q]<-0  
           Eta<-Z_alles%*%Delta[1,]
 
-          if(is.null(family$multivariate)){
-            D<-family$mu.eta(Eta)
-            Mu<-family$linkinv(Eta)
-            SigmaInv <- 1/family$variance(Mu)
-          }else{
-            Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-            Mu_cat <- family$linkinv(Eta_cat)
-            D <- family$deriv.mat(Mu_cat)
-            SigmaInv <- family$SigmaInv(Mu_cat)
-            Mu <- c(t(Mu_cat))
-          }
+        if(is.null(family$multivariate)){
+          Mu<-family$linkinv(Eta)
+          D<-family$mu.eta(Eta)
+          SigmaInv <- 1/family$variance(Mu)
+        }else{
+          Mu<-family$linkinv(Eta, K)
+          D <- family$deriv.mat(Eta, K)
+          SigmaInv <- family$SigmaInv(Mu, K)
+        }
           
-          logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K)
+          logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K)
           
           active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0))
           Z_aktuell<-Z_alles[,active]
           lin_akt<-q+sum(!is.element(Delta[1,(q+1):lin],0))
 
-          betaact<-Delta[1,active]
+          betaact<-Delta[1,active] # braucht man das?
           
-      NRstep<-F; vorz <- T
+      NRstep<-F; vorz <- T # braucht man das?
         
       ###############################################################################################################################################
       ################################################################### Main Iteration ###################################################################
@@ -318,7 +341,6 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         for (l in 2:control$steps)
         {
           if(control$print.iter)
-            #  message("Iteration ",l)
           {
             cat(if(ia) "\r" else if(l > 1) "\n" else NULL)
             cat(paste("Iteration ",l))
@@ -328,10 +350,9 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           if(is.null(family$multivariate)){
             score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)
           }else{
-            score_old2<-score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))
+            score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)
           }
-          
-          
+
           lambda.max<-max(abs(score_vec2[(q+1):lin]))
           
           if (BLOCK)
@@ -345,9 +366,9 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l-1,(q+1):lin])
           t_edge<-crit.obj$min.rate
           
-          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,X=Z_alles,fixef=Delta[l-1,1:lin],
+          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l-1,1:lin],
                                              Grad=score_vec2,family=family,lower = 0, upper = Inf, K=K))
-          
+
           t_opt<-optim.obj$par
           
           if(!NRstep && !(all(active_old==active)))
@@ -363,14 +384,16 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
             D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
             F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)
             }else{
-            F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_aktuell)))
+              W_opt <- RcppEigenProd2(D, SigmaInv)
+              F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)
+              #F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_aktuell)))
             }
             
             InvFisher<-try(chol2inv(chol(F_gross)),silent=T)
-            if(class(InvFisher)=="try-error")
+            if(inherits(InvFisher, "try-error"))
               InvFisher<-try(solve(F_gross),silent=T)
             
-            if(class(InvFisher)=="try-error")
+            if(inherits(InvFisher, "try-error"))
             { 
               tryNR <- FALSE
             }else{
@@ -404,18 +427,16 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         Eta<-Z_alles%*%Delta[l,]
         
         if(is.null(family$multivariate)){
-          D<-family$mu.eta(Eta)
           Mu<-family$linkinv(Eta)
+          D<-family$mu.eta(Eta)
           SigmaInv <- 1/family$variance(Mu)
         }else{
-          Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          D <- family$deriv.mat(Mu_cat)
-          SigmaInv <- family$SigmaInv(Mu_cat)
-          Mu <- c(t(Mu_cat))
+          Mu<-family$linkinv(Eta, K)
+          D <- family$deriv.mat(Eta, K)
+          SigmaInv <- family$SigmaInv(Mu, K)
         }
         
-        logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K)
+        logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K)
         
               active_old<-active
               active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0))
@@ -431,7 +452,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           if(finish ||  finish2) #|| (all(grad.1 == 0) ))
             break
         }}
-      
+      ############################################################################
       conv.step<-l
       phi.med<-phi
       
@@ -451,19 +472,20 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           W_opt <- D*SigmaInv*D
           F_gross <- t(Z_aktuell)%*%(Z_aktuell*W_opt)
         }else{
-          W_opt <- D%*%(SigmaInv%*%t(D))
+          W_opt <- RcppEigenProd2(D, SigmaInv)
           F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)
-          W_inv_t <- chol(W_opt)
+          W_inv_t <- RcppEigenSpChol(W_opt)
         }
         InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher2)=="try-error")
-          InvFisher2<-try(solve(F_gross),silent=T)
-        if(class(InvFisher2)!="try-error")
+        if(inherits(InvFisher2, "try-error"))
+            InvFisher2<-try(solve(F_gross),silent=T)
+        if(!inherits(InvFisher2, "try-error"))
         {  
           if(is.null(family$multivariate)){
-            FinalHat.df<-(Z_aktuell*sqrt(W_opt))%*%InvFisher2%*%t(Z_aktuell*sqrt(W_opt))
+            Z_temp <- Z_aktuell*sqrt(W_opt)
+            FinalHat.df<-Z_temp%*%InvFisher2%*%t(Z_temp)
           }else{
-            FinalHat.df<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
+            FinalHat.df <- RcppEigenProd3(W_inv_t, Z_aktuell, InvFisher2)
           }
           
         df<-sum(diag(FinalHat.df))
@@ -485,22 +507,22 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
                                    Delta_start=Delta_neu[aaa],steps=control$maxIter,
                                    family=family,overdispersion=control$overdispersion,
                                    phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
-          
-          if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_noRE(y,Z_fastalles[,aaa],K=K,
                                       Delta_start=Delta_start[aaa],steps=control$maxIter,
                                       family=family,overdispersion=control$overdispersion,
                                       phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                       eps.final=control$eps.final),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
 
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {
           cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
@@ -512,7 +534,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }  
       Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
 
-      if(class(glmm_fin)!="try-error")
+      if(!inherits(glmm_fin, "try-error"))
       {
         Delta_neu2<-Delta_neu
         Delta_neu2[aaa]<-glmm_fin$Delta
@@ -521,13 +543,11 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         complexity<-glmm_fin$complexity
         Delta_neu<-Delta_neu2
         Eta_opt<-Z_alles%*%Delta_neu
-        if(is.null(family$multivariate)){
-          Mu_opt<-family$linkinv(Eta_opt)
-        }else{
-          Eta_cat <- matrix(Eta_opt, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          Mu_opt <- c(t(Mu_cat))
-        }
+       if(is.null(family$multivariate)){
+         Mu_opt<-family$linkinv(Eta_opt)
+       }else{
+         Mu_opt <- family$linkinv(Eta_opt, K)
+       }
       }else{
         glmm_fin<-list()
         complexity<-df
@@ -558,7 +578,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         if(any.notpen)
         {
           Delta_neu[inotpen.which] <- (1 / scale.notpen) * Delta_neu[inotpen.which]
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
             Standard_errors[inotpen.which] <- (1 / scale.notpen) * Standard_errors[inotpen.which]
         }
         ## For df > 1 we have to use a matrix inversion to go back to the
@@ -566,7 +586,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         for(j in 1:length(ipen.which)){
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
           {
             Sc.help <- solve(scale.pen[[j]])
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
@@ -581,15 +601,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           sum(Delta_neu[1:lin][-intercept.which,drop = FALSE] * mu.x)   
       }
       
-      
       aic<-NaN
       bic<-NaN
       
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
         
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F, K=K)
-        
+        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F, K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
            complexity<-sum(Delta_neu[1:(lin)]!=0)
@@ -619,6 +637,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
       ret.obj$logLik.vec<-logLik.vec
+      ret.obj$K <- K
       return(ret.obj)
       ##############################################################  
       ######################## 2. Smooth ###########################  
@@ -679,15 +698,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }
       
       if(is.null(family$multivariate)){
-        D<-family$mu.eta(Eta_start)
         Mu<-family$linkinv(Eta_start)
+        D<-family$mu.eta(Eta_start)
         SigmaInv <- 1/family$variance(Mu)
       }else{
-        Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-        Mu_cat <- family$linkinv(Eta_cat)
-        D <- family$deriv.mat(Mu_cat)
-        SigmaInv <- family$SigmaInv(Mu_cat)
-        Mu <- c(t(Mu_cat))
+        Mu<-family$linkinv(Eta_start, K)
+        D <- family$deriv.mat(Eta_start, K)
+        SigmaInv <- family$SigmaInv(Mu, K)
       }
       
       U<-X[,!is.na(index.new),drop=FALSE]
@@ -730,7 +747,8 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           if(is.null(family$multivariate)){
             score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
           }else{
-            score_vec<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+            score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
+            #score_vec<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
           }
           
       lambda.max<-max(abs(score_vec[(q+1):lin]))
@@ -748,7 +766,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],
                                          Grad=score_vec,family=family,lower = 0, upper = Inf, K=K))
       
       t_opt<-optim.obj$par
@@ -761,18 +779,16 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           Eta<-Z_alles%*%Delta[1,]
 
           if(is.null(family$multivariate)){
-            D<-family$mu.eta(Eta)
             Mu<-family$linkinv(Eta)
+            D<-family$mu.eta(Eta)
             SigmaInv <- 1/family$variance(Mu)
           }else{
-            Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-            Mu_cat <- family$linkinv(Eta_cat)
-            D <- family$deriv.mat(Mu_cat)
-            SigmaInv <- family$SigmaInv(Mu_cat)
-            Mu <- c(t(Mu_cat))
+            Mu<-family$linkinv(Eta, K)
+            D <- family$deriv.mat(Eta, K)
+            SigmaInv <- family$SigmaInv(Mu, K)
           }
           
-          logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=NULL,family=family,penal=F, K=K)
+          logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=NULL,family=family,penal=F, K=K, phi = phi)
           
           active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,dim.smooth))
           Z_aktuell<-Z_alles[,active]
@@ -804,7 +820,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           if(is.null(family$multivariate)){
             score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[l-1,]
           }else{
-            score_old2<-score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[l-1,]
+            score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[l-1,]
           }
           lambda.max<-max(abs(score_vec2[(q+1):lin]))
           
@@ -819,7 +835,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l-1,(q+1):lin])
           t_edge<-crit.obj$min.rate
           
-          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,X=Z_alles,fixef=Delta[l-1,1:(lin+dim.smooth)],
+          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l-1,1:(lin+dim.smooth)],
                                              Grad=score_vec2,family=family,lower = 0, upper = Inf, K=K))
           
           t_opt<-optim.obj$par
@@ -838,13 +854,15 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
               D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
               F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+diag(P_akt)
             }else{
-              F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_aktuell)))+diag(P_akt)
+              W_opt <- RcppEigenProd2(D, SigmaInv)
+              F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+diag(P_akt)
+              #F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_aktuell)))+diag(P_akt)
             }
             
             InvFisher<-try(chol2inv(chol(F_gross)),silent=T)
-            if(class(InvFisher)=="try-error")
+            if(inherits(InvFisher, "try-error"))
               InvFisher<-try(solve(F_gross),silent=T)
-            if(class(InvFisher)=="try-error")
+            if(inherits(InvFisher, "try-error"))
             {
               tryNR <- FALSE
             }else{
@@ -868,7 +886,6 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
               {
                 Delta[l,active]<- Delta[l-1,active]+nue*InvFisher%*%score_old[active]
                 NRstep<-T
-#                print("NR-step!!!")
               }else{
                 Delta[l,]<-Delta[l-1,]+min(t_opt,t_edge)*nue*score_vec
                 if(t_opt>t_edge)
@@ -878,18 +895,16 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
               Eta<-Z_alles%*%Delta[l,]
 
               if(is.null(family$multivariate)){
-                D<-family$mu.eta(Eta)
                 Mu<-family$linkinv(Eta)
+                D<-family$mu.eta(Eta)
                 SigmaInv <- 1/family$variance(Mu)
               }else{
-                Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-                Mu_cat <- family$linkinv(Eta_cat)
-                D <- family$deriv.mat(Mu_cat)
-                SigmaInv <- family$SigmaInv(Mu_cat)
-                Mu <- c(t(Mu_cat))
+                Mu<-family$linkinv(Eta, K)
+                D <- family$deriv.mat(Eta, K)
+                SigmaInv <- family$SigmaInv(Mu, K)
               }
               
-              logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K)
+              logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K, phi = phi)
               
               active_old<-active
               active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,dim.smooth))
@@ -929,19 +944,20 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         W_opt <- D*SigmaInv*D
         F_gross <- t(Z_aktuell)%*%(Z_aktuell*W_opt)+diag(P_akt)
       }else{
-        W_opt <- D%*%(SigmaInv%*%t(D))
+        W_opt <- RcppEigenProd2(D, SigmaInv)
         F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+diag(P_akt)
-        W_inv_t <- chol(W_opt)
+        W_inv_t <- RcppEigenSpChol(W_opt)
       }
+      
       InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-      if(class(InvFisher2)=="try-error")
+      if(inherits(InvFisher, "try-error"))
         InvFisher2<-try(solve(F_gross),silent=T)
-      if(class(InvFisher2)!="try-error")
+      if(!inherits(InvFisher, "try-error"))
       {  
         if(is.null(family$multivariate)){
           FinalHat.df<-(Z_aktuell*sqrt(W_opt))%*%InvFisher2%*%t(Z_aktuell*sqrt(W_opt))
         }else{
-          FinalHat.df<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
+          FinalHat.df <- RcppEigenProd3(W_inv_t, Z_aktuell, InvFisher2)
         }
         df<-sum(diag(FinalHat.df))
         if(control$overdispersion)
@@ -960,20 +976,20 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
                                           Delta_start=Delta_neu[aaa],steps=control$maxIter,
                                           family=family,overdispersion=control$overdispersion,
                                           phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
-          if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_smooth_noRE(y,Z_fastalles[,aaa],Phi,penal.vec,K=K,
                                              Delta_start=Delta_start[aaa],steps=control$maxIter,
                                              family=family,overdispersion=control$overdispersion,
                                              phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
 
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {
           cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
@@ -986,7 +1002,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }  
       Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
-      if(class(glmm_fin)!="try-error")
+      if(!inherits(glmm_fin, "try-error"))
       {
         Delta_neu2<-Delta_neu
         EDF.matrix<-glmm_fin$EDF.matrix
@@ -1000,9 +1016,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         if(is.null(family$multivariate)){
           Mu_opt<-family$linkinv(Eta_opt)
         }else{
-          Eta_cat <- matrix(Eta_opt, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          Mu_opt <- c(t(Mu_cat))
+          Mu_opt<-family$linkinv(Eta_opt, K)
         }
       }else{
         glmm_fin<-list()
@@ -1012,16 +1026,18 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
 
             P1<-c(rep(0,lin_akt),penal.vec)
             if(is.null(family$multivariate)){
-              F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+diag(P1)
+              Fpart<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)
             }else{
-              Fpart <- t(Z_aktuell)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_aktuell)))
-              F_gross<-Fpart+diag(P1)
-            }
+              W_opt <- RcppEigenProd2(D, SigmaInv)
+              Fpart <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)
+             }
+            F_gross <- Fpart+diag(P1)
             
+                        
         InvFisher<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher)=="try-error")
+        if(inherits(InvFisher, "try-error"))
           InvFisher<-try(solve(F_gross),silent=T)
-        if(class(InvFisher)=="try-error")
+        if(inherits(InvFisher, "try-error"))
         {
           warning("No EDF's for smooth functions available, as Fisher matrix not invertible!")
           complexity.smooth<-dim.smooth
@@ -1067,7 +1083,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         if(any.notpen)
         {
           Delta_neu[inotpen.which] <- (1 / scale.notpen) * Delta_neu[inotpen.which]
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
             Standard_errors[inotpen.which] <- (1 / scale.notpen) * Standard_errors[inotpen.which]
         }
         ## For df > 1 we have to use a matrix inversion to go back to the
@@ -1075,7 +1091,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         for(j in 1:length(ipen.which)){
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
           {
             Sc.help <- solve(scale.pen[[j]])
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
@@ -1095,7 +1111,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F,K=K)
+        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -1131,12 +1147,12 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
       ret.obj$df<-df
+      ret.obj$K <- K
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
       ret.obj$logLik.vec<-logLik.vec
       return(ret.obj)
     }  
-    
     #######################################################################  
     ######################## no switch to Newton Raphson ###############
     #######################################################################  
@@ -1154,15 +1170,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }
       
       if(is.null(family$multivariate)){
-        D<-family$mu.eta(Eta_start)
         Mu<-family$linkinv(Eta_start)
+        D<-family$mu.eta(Eta_start)
         SigmaInv <- 1/family$variance(Mu)
       }else{
-        Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-        Mu_cat <- family$linkinv(Eta_cat)
-        D <- family$deriv.mat(Mu_cat)
-        SigmaInv <- family$SigmaInv(Mu_cat)
-        Mu <- c(t(Mu_cat))
+        Mu<-family$linkinv(Eta_start, K)
+        D <- family$deriv.mat(Eta_start, K)
+        SigmaInv <- family$SigmaInv(Mu, K)
       }
       
       lin0<-sum(beta_null!=0)
@@ -1194,7 +1208,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       if(is.null(family$multivariate)){
         score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)
       }else{
-        score_vec<-t(Z_alles)%*%D%*%SigmaInv%*%(y-Mu)
+        score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)
       }
       lambda.max<-max(abs(score_vec[(q+1):lin]))
       
@@ -1210,9 +1224,9 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
 
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,X=Z_alles,fixef=Delta_start[1:lin],
-                                         Grad=score_vec,family=family,lower = 0, upper = Inf, K = K))
-      
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:lin],
+                                         Grad=score_vec,family=family, K = K,lower = 0, upper = Inf))
+
       t_opt<-optim.obj$par
       
        nue<-control$nue
@@ -1225,18 +1239,16 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         Eta.ma[2,]<-Eta
        
         if(is.null(family$multivariate)){
-          D<-family$mu.eta(Eta)
           Mu<-family$linkinv(Eta)
+          D<-family$mu.eta(Eta)
           SigmaInv <- 1/family$variance(Mu)
         }else{
-          Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          D <- family$deriv.mat(Mu_cat)
-          SigmaInv <- family$SigmaInv(Mu_cat)
-          Mu <- c(t(Mu_cat))
+          Mu<-family$linkinv(Eta, K)
+          D <- family$deriv.mat(Eta, K)
+          SigmaInv <- family$SigmaInv(Mu, K)
         }
 
-        logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=NULL,family=family,penal=F, K=K)
+        logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=NULL,family=family,penal=F, K=K, phi = phi)
         
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0))
         Z_aktuell<-Z_alles[,active]
@@ -1260,7 +1272,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           if(is.null(family$multivariate)){
             score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)
           }else{
-            score_old2<-score_vec2<-t(Z_alles)%*%D%*%SigmaInv%*%(y-Mu)
+            score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)
           }
           
           lambda.max<-max(abs(score_vec2[(q+1):lin]))
@@ -1273,40 +1285,33 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           }
           score_vec2<-c(score_vec2[1:q],grad.1)
           
-          #F_gross<-t(Z_alles)%*%(Z_alles*D*1/Sigma*D)
-          
           crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l-1,(q+1):lin])
           t_edge<-crit.obj$min.rate
-          #grad.2<-t(score_vec2)%*%F_gross%*%score_vec2
-          
-          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,X=Z_alles,fixef=Delta[l-1,1:lin],
+
+          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l-1,1:lin],
                                              Grad=score_vec2,family=family,lower = 0, upper = Inf, K=K))
           
           t_opt<-optim.obj$par
           
-
           Delta[l,]<-Delta[l-1,]+min(t_opt,t_edge)*nue*score_vec2
-            if(t_opt>t_edge)# & half.index==0)
+            if(t_opt>t_edge)
               Delta[l,crit.obj$whichmin+q]<-0  
             
             Eta<-Z_alles%*%Delta[l,]
 
 
             if(is.null(family$multivariate)){
-              D<-family$mu.eta(Eta)
               Mu<-family$linkinv(Eta)
+              D<-family$mu.eta(Eta)
               SigmaInv <- 1/family$variance(Mu)
             }else{
-              Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-              Mu_cat <- family$linkinv(Eta_cat)
-              D <- family$deriv.mat(Mu_cat)
-              SigmaInv <- family$SigmaInv(Mu_cat)
-              Mu <- c(t(Mu_cat))
+              Mu<-family$linkinv(Eta, K)
+              D <- family$deriv.mat(Eta, K)
+              SigmaInv <- family$SigmaInv(Mu, K)
             }
 
-            logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K)
+            logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K, phi = phi)
             
-#            active_old<-active
             active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0))
             Z_aktuell<-Z_alles[,active]
             lin_akt<-q+sum(!is.element(Delta[l,(q+1):lin],0))
@@ -1342,19 +1347,20 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         W_opt <- D*SigmaInv*D
         F_gross <- t(Z_aktuell)%*%(Z_aktuell*W_opt)
         }else{
-          W_opt <- D%*%(SigmaInv%*%t(D))
+          W_opt <- RcppEigenProd2(D, SigmaInv)
           F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)
-          W_inv_t <- chol(W_opt)
+          W_inv_t <- RcppEigenSpChol(W_opt)
         }
+        
         InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher2)=="try-error")
+        if(inherits(InvFisher2, "try-error"))
           InvFisher2<-try(solve(F_gross),silent=T)
-        if(class(InvFisher2)!="try-error")
+        if(!inherits(InvFisher2, "try-error"))
         {  
           if(is.null(family$multivariate)){
             FinalHat.df<-(Z_aktuell*sqrt(W_opt))%*%InvFisher2%*%t(Z_aktuell*sqrt(W_opt))
           }else{
-            FinalHat.df<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
+            FinalHat.df <- RcppEigenProd3(W_inv_t, Z_aktuell, InvFisher2)
           }
           
           df<-sum(diag(FinalHat.df))
@@ -1368,6 +1374,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       aaa<-!is.element(Delta_neu[1:(lin)],0)
       aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
       
+      
       if(final.re)
       {    
         ############ final re-estimation
@@ -1378,22 +1385,22 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
                                       phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = F)
  
 
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final_noRE(y,Z_fastalles[,aaa],K=K,
                                          Delta_start=Delta_start[aaa],steps=control$maxIter,
                                          family=family,overdispersion=control$overdispersion,
                                          phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                          eps.final=control$eps.final),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
  
                   
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {
           cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
@@ -1405,7 +1412,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }  
       Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
-      if(class(glmm_fin)!="try-error")
+      if(!inherits(glmm_fin, "try-error"))
       {
         Delta_neu2<-Delta_neu
         Delta_neu2[aaa]<-glmm_fin$Delta
@@ -1414,18 +1421,16 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         complexity<-glmm_fin$complexity
         Delta_neu<-Delta_neu2
         Eta_opt<-Z_alles%*%Delta_neu
-          if(is.null(family$multivariate)){
-            Mu_opt<-family$linkinv(Eta_opt)
-          }else{
-            Eta_cat <- matrix(Eta_opt, byrow = TRUE, ncol = K)
-            Mu_cat <- family$linkinv(Eta_cat)
-            Mu_opt <- c(t(Mu_cat))
-          }
+        if(is.null(family$multivariate)){
+          Mu_opt<-family$linkinv(Eta_opt)
         }else{
+          Mu_opt<-family$linkinv(Eta_opt, K)
+        }
+      }else{
         glmm_fin<-list()
         complexity<-df
       }
-
+      
       colnames(Standard_errors) <- rownames(Standard_errors) <- paste0("help.",1:nrow(Standard_errors))
       
       if(dim(X)[2]>0)
@@ -1451,7 +1456,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         if(any.notpen)
         {
           Delta_neu[inotpen.which] <- (1 / scale.notpen) * Delta_neu[inotpen.which]
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
             Standard_errors[inotpen.which] <- (1 / scale.notpen) * Standard_errors[inotpen.which]
         }
         ## For df > 1 we have to use a matrix inversion to go back to the
@@ -1459,7 +1464,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         for(j in 1:length(ipen.which)){
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
           {
             Sc.help <- solve(scale.pen[[j]])
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
@@ -1480,9 +1485,8 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       if(is.element(family$family,c("gaussian", "binomial", "poisson", "acat" ,"cumulative"))) 
       {
         
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F, K=K)
+        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F, K=K, phi = phi)
         
-
         if(control$complexity!="hat.matrix")  
           complexity<-sum(Delta_neu[1:(lin)]!=0)
 
@@ -1508,6 +1512,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
       ret.obj$df<-df
+      ret.obj$K <- K
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
       ret.obj$logLik.vec<-logLik.vec
@@ -1572,15 +1577,13 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       }
       
       if(is.null(family$multivariate)){
-        D<-family$mu.eta(Eta_start)
         Mu<-family$linkinv(Eta_start)
+        D<-family$mu.eta(Eta_start)
         SigmaInv <- 1/family$variance(Mu)
       }else{
-        Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-        Mu_cat <- family$linkinv(Eta_cat)
-        D <- family$deriv.mat(Mu_cat)
-        SigmaInv <- family$SigmaInv(Mu_cat)
-        Mu <- c(t(Mu_cat))
+        Mu<-family$linkinv(Eta_start, K)
+        D <- family$deriv.mat(Eta_start, K)
+        SigmaInv <- family$SigmaInv(Mu, K)
       }
       
       U<-X[,!is.na(index.new),drop=FALSE]
@@ -1622,7 +1625,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           if(is.null(family$multivariate)){
             score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
           }else{
-            score_vec<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+            score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
           }
           
       lambda.max<-max(abs(score_vec[(q+1):lin]))
@@ -1639,7 +1642,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],
                                          Grad=score_vec,family=family,lower = 0, upper = Inf, K=K))
       
       t_opt<-optim.obj$par
@@ -1652,18 +1655,16 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         Eta<-Z_alles%*%Delta[1,]
 
         if(is.null(family$multivariate)){
-          D<-family$mu.eta(Eta)
           Mu<-family$linkinv(Eta)
+          D<-family$mu.eta(Eta)
           SigmaInv <- 1/family$variance(Mu)
         }else{
-          Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          D <- family$deriv.mat(Mu_cat)
-          SigmaInv <- family$SigmaInv(Mu_cat)
-          Mu <- c(t(Mu_cat))
+          Mu<-family$linkinv(Eta, K)
+          D <- family$deriv.mat(Eta, K)
+          SigmaInv <- family$SigmaInv(Mu, K)
         }
         
-        logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K)
+        logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K, phi = phi)
         
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,dim.smooth))
         Z_aktuell<-Z_alles[,active]
@@ -1693,10 +1694,9 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           if(is.null(family$multivariate)){
             score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[l-1,]
           }else{
-            score_old2<-score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[l-1,]
+            score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[l-1,]
           }
           lambda.max<-max(abs(score_vec2[(q+1):lin]))
-          
           
           if (BLOCK)
           {
@@ -1709,7 +1709,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
           crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l-1,(q+1):lin])
           t_edge<-crit.obj$min.rate
 
-          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,X=Z_alles,fixef=Delta[l-1,1:(lin+dim.smooth)],
+          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt.noRE,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l-1,1:(lin+dim.smooth)],
                                              Grad=score_vec2,family=family,lower = 0, upper = Inf,K=K))
           
           t_opt<-optim.obj$par
@@ -1722,20 +1722,17 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
             Eta<-Z_alles%*%Delta[l,]
  
             if(is.null(family$multivariate)){
-              D<-family$mu.eta(Eta)
               Mu<-family$linkinv(Eta)
+              D<-family$mu.eta(Eta)
               SigmaInv <- 1/family$variance(Mu)
             }else{
-              Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-              Mu_cat <- family$linkinv(Eta_cat)
-              D <- family$deriv.mat(Mu_cat)
-              SigmaInv <- family$SigmaInv(Mu_cat)
-              Mu <- c(t(Mu_cat))
+              Mu<-family$linkinv(Eta, K)
+              D <- family$deriv.mat(Eta, K)
+              SigmaInv <- family$SigmaInv(Mu, K)
             }
             
-            logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K)
+            logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=NULL,family=family,penal=F,K=K, phi = phi)
             
-#            active_old<-active
             active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,dim.smooth))
             Z_aktuell<-Z_alles[,active]
             lin_akt<-q+sum(!is.element(Delta[l,(q+1):lin],0))
@@ -1750,7 +1747,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
             break
           Eta.old<-Eta
         }}
-      
+############################################################      
       conv.step<-l
       phi.med<-phi
       
@@ -1771,19 +1768,20 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         W_opt <- D*SigmaInv*D
         F_gross <- t(Z_aktuell)%*%(Z_aktuell*W_opt)+diag(P_akt)
       }else{
-        W_opt <- D%*%(SigmaInv%*%t(D))
+         W_opt <- RcppEigenProd2(D, SigmaInv)
         F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+diag(P_akt)
-        W_inv_t <- chol(W_opt)
+        W_inv_t <- RcppEigenSpChol(W_opt)
       }
-      InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-      if(class(InvFisher2)=="try-error")
+ 
+     InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
+     if(inherits(InvFisher2, "try-error"))
         InvFisher2<-try(solve(F_gross),silent=T)
-      if(class(InvFisher2)!="try-error")
+      if(!inherits(InvFisher2, "try-error"))
       {  
         if(is.null(family$multivariate)){
           FinalHat.df<-(Z_aktuell*sqrt(W_opt))%*%InvFisher2%*%t(Z_aktuell*sqrt(W_opt))
         }else{
-          FinalHat.df<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
+          FinalHat.df <- RcppEigenProd3(W_inv_t, Z_aktuell, InvFisher2)
         }
         df<-sum(diag(FinalHat.df))
         if(control$overdispersion)
@@ -1803,20 +1801,20 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
                                              Delta_start=Delta_neu[c(aaa,rep(T,dim.smooth))],steps=control$maxIter,
                                              family=family,overdispersion=control$overdispersion,
                                              phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {  
           glmm_fin2<-try(glmm_final_smooth_noRE(y,Z_fastalles[,aaa],Phi,penal.vec,K=K,
                                                 Delta_start=Delta_start[c(aaa,rep(T,dim.smooth))],steps=control$maxIter,
                                                 family=family,overdispersion=control$overdispersion,
                                                 phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final),silent = TRUE)
-          if(class(glmm_fin2)!="try-error")
+          if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
 
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {
           cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
@@ -1831,7 +1829,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
       
-      if(class(glmm_fin)!="try-error")
+      if(inherits(glmm_fin, "try-error"))
       {
         Delta_neu2<-Delta_neu
         EDF.matrix<-glmm_fin$EDF.matrix
@@ -1845,9 +1843,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         if(is.null(family$multivariate)){
           Mu_opt<-family$linkinv(Eta_opt)
         }else{
-          Eta_cat <- matrix(Eta_opt, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          Mu_opt <- c(t(Mu_cat))
+          Mu_opt<-family$linkinv(Eta_opt, K)
         }
       }else{
         glmm_fin<-list()
@@ -1859,14 +1855,15 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
             if(is.null(family$multivariate)){
               F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+diag(P1)
             }else{
-              Fpart <- t(Z_aktuell)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_aktuell)))
+              W_opt <- RcppEigenProd2(D, SigmaInv)
+              Fpart <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)
               F_gross<-Fpart+diag(P1)
             }
             
         InvFisher<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher)=="try-error")
+        if(inherits(InvFisher, "try-error"))
           InvFisher<-try(solve(F_gross),silent=T)
-        if(class(InvFisher)=="try-error")
+        if(inherits(InvFisher, "try-error"))
         {
           warning("No EDF's for smooth functions available, as Fisher matrix not invertible!")
           complexity.smooth<-dim.smooth
@@ -1913,7 +1910,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         if(any.notpen)
         {
           Delta_neu[inotpen.which] <- (1 / scale.notpen) * Delta_neu[inotpen.which]
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(InvFisher, "try-error"))
             Standard_errors[inotpen.which] <- (1 / scale.notpen) * Standard_errors[inotpen.which]
         }
         ## For df > 1 we have to use a matrix inversion to go back to the
@@ -1921,7 +1918,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
         for(j in 1:length(ipen.which)){
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(InvFisher, "try-error"))
           {
             Sc.help <- solve(scale.pen[[j]])
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
@@ -1942,7 +1939,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F,K=K)
+        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=NULL,family=family,penal=F,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -1977,6 +1974,7 @@ est.glmmLasso.noRE<-function(fix,data,lambda,family,final.re,switch.NR,control)
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
       ret.obj$df<-df
+      ret.obj$K <- K
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
       ret.obj$logLik.vec<-logLik.vec

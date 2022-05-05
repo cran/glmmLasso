@@ -15,11 +15,9 @@ if(is.null(family$multivariate)){
   Mu<-family$linkinv(Eta)
   SigmaInv <- 1/family$variance(Mu)
 }else{
-  Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-  Mu_cat <- family$linkinv(Eta_cat)
-  D <- family$deriv.mat(Mu_cat)
-  SigmaInv <- family$SigmaInv(Mu_cat)
-  Mu <- c(t(Mu_cat))
+  Mu <- family$linkinv(Eta, K)
+  D <- family$deriv.mat(Eta, K)
+  SigmaInv <- family$SigmaInv(Mu, K)
 }
 
 if(print.iter.final)
@@ -66,12 +64,13 @@ if(is.null(family$multivariate)){
   score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
   F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1
 }else{
-  score_vec <- t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
-  F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1
+  score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
+  W_opt <- RcppEigenProd2(D, SigmaInv)
+  F_gross <- t(Z_alles)%*%(W_opt%*%Z_alles)+P1
 }
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
-if(class(InvFisher)=="try-error")
+if(inherits(InvFisher, "try-error"))
 InvFisher<-solve(F_gross)  
 
 half.index<-0
@@ -96,11 +95,9 @@ if(is.null(family$multivariate)){
   Mu<-family$linkinv(Eta)
   SigmaInv <- 1/family$variance(Mu)
 }else{
-  Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-  Mu_cat <- family$linkinv(Eta_cat)
-  D <- family$deriv.mat(Mu_cat)
-  SigmaInv <- family$SigmaInv(Mu_cat)
-  Mu <- c(t(Mu_cat))
+  Mu <- family$linkinv(Eta, K)
+  D <- family$deriv.mat(Eta, K)
+  SigmaInv <- family$SigmaInv(Mu, K)
 }
 
 if (method=="EM")
@@ -109,12 +106,13 @@ if (method=="EM")
     D <- drop(D);SigmaInv <- drop(SigmaInv)
     F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1.old
   }else{
-    F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1.old
+    W_opt <- RcppEigenProd2(D, SigmaInv)
+    F_gross <- t(Z_alles)%*%(W_opt%*%Z_alles)+P1.old
   }
   InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
-  if(class(InvFisher)=="try-error")
+  if(inherits(InvFisher, "try-error"))
     InvFisher<-try(solve(F_gross),silent=TRUE)  
-  if(class(InvFisher)=="try-error")
+  if(inherits(InvFisher, "try-error"))
   {
     half.index<-half.index+1  
   }else{
@@ -191,7 +189,7 @@ Betadach<-Delta[1,1:lin]
       Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
       Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
       Q_solvetest<-try(solve(Q1))
-         if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+         if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
          break
       }
    }
@@ -223,16 +221,17 @@ if(is.null(family$multivariate)){
   score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
   F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1
 }else{
-  score_vec <- t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
-  F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1
+  score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
+  W_opt <- RcppEigenProd2(D, SigmaInv)
+  F_gross <- t(Z_alles)%*%(W_opt%*%Z_alles)+P1
 }
 
 InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
 
-if(class(InvFisher)=="try-error")
+if(inherits(InvFisher, "try-error"))
   InvFisher<-try(solve(F_gross),silent=TRUE)  
 
-if(class(InvFisher)=="try-error")
+if(inherits(InvFisher, "try-error"))
 {
   half.index<-half.index+1  
 }else{
@@ -284,11 +283,9 @@ if(is.null(family$multivariate)){
   Mu<-family$linkinv(Eta)
   SigmaInv <- 1/family$variance(Mu)
 }else{
-  Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-  Mu_cat <- family$linkinv(Eta_cat)
-  D <- family$deriv.mat(Mu_cat)
-  SigmaInv <- family$SigmaInv(Mu_cat)
-  Mu <- c(t(Mu_cat))
+  Mu <- family$linkinv(Eta, K)
+  D <- family$deriv.mat(Eta, K)
+  SigmaInv <- family$SigmaInv(Mu, K)
 }
 
 if (method=="EM")
@@ -297,12 +294,13 @@ if (method=="EM")
     D <- drop(D);SigmaInv <- drop(SigmaInv)
     F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1.old
   }else{
-    F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1.old
+    W_opt <- RcppEigenProd2(D, SigmaInv)
+    F_gross <- t(Z_alles)%*%(W_opt%*%Z_alles)+P1.old
   }
   InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
-  if(class(InvFisher)=="try-error")
+  if(inherits(InvFisher, "try-error"))
     InvFisher<-try(solve(F_gross),silent=TRUE)  
-  if(class(InvFisher)=="try-error")
+  if(inherits(InvFisher, "try-error"))
   {
     half.index<-half.index+1  
   }else{
@@ -381,7 +379,7 @@ if (method=="EM")
       Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
       Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
       Q_solvetest<-try(solve(Q1))
-         if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+         if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
          break
       }
    }
@@ -414,14 +412,15 @@ if(is.null(family$multivariate)){
   score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[l,]
   F_gross<-t(Z_alles)%*%(Z_alles*D*SigmaInv*D)+P1
 }else{
-  score_vec <- t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[l,]
-  F_gross<-t(Z_alles)%*%(D%*%(SigmaInv%*%(t(D)%*%Z_alles)))+P1
+  score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[l,]
+  W_opt <- RcppEigenProd2(D, SigmaInv)
+  F_gross <- t(Z_alles)%*%(W_opt%*%Z_alles)+P1
 }
  
  InvFisher<-try(chol2inv(chol(F_gross)),silent=TRUE)
-  if(class(InvFisher)=="try-error")
+  if(inherits(InvFisher, "try-error"))
     InvFisher<-try(solve(F_gross),silent=TRUE)  
-  if(class(InvFisher)=="try-error")
+  if(inherits(InvFisher, "try-error"))
   {
     half.index<-half.index+1  
   }else{
@@ -445,9 +444,9 @@ if(is.null(family$multivariate)){
   W_opt <- D*SigmaInv*D
   FinalHat<-(Z_alles*sqrt(W_opt))%*%InvFisher%*%t(Z_alles*sqrt(W_opt))
 }else{
-  W_opt <- D%*%(SigmaInv%*%t(D))
-  W_inv_t <- chol(W_opt)
-  FinalHat<-W_inv_t%*%(Z_alles%*%(InvFisher%*%(t(Z_alles)%*%t(W_inv_t))))
+  W_inv_t <- RcppEigenSpChol(W_opt)
+  FinalHat <- RcppEigenProd3(W_inv_t, Z_alles, InvFisher)
+  #FinalHat<-W_inv_t%*%(Z_alles%*%(InvFisher%*%(t(Z_alles)%*%t(W_inv_t))))
 }
 
 complexity<-sum(diag(FinalHat))

@@ -114,6 +114,18 @@ predict.glmmLasso <- function(object,newdata=NULL,new.random.design=NULL,...)
     X <- model.matrix(formula(object$fix), newdata)
     family<-object$family
     
+    if(!is.null(family$multivariate)){
+      K <- object$K
+      if(all(X[,1]==1)){
+        X <- X[,-1]
+      }
+      names.x <- colnames(X)
+      theta <- matrix(rep(diag(1,K),nrow(X)),ncol=K,byrow=TRUE)
+      X <- cbind(theta, matrix(rep(X,each=K),ncol=ncol(X)))
+      colnames(X) <- c(paste0("theta",1:K),names.x)
+    }
+    
+    
     if(!is.null(object$rnd))
     {  
     rnd.len<-object$rnd.len                 
@@ -159,10 +171,18 @@ predict.glmmLasso <- function(object,newdata=NULL,new.random.design=NULL,...)
         y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))
         rand.ok<-is.element(newdata[,object$subject],subj.ok)
         W.neu<-W[,subj.test]
+        if(!is.null(family$multivariate))
+        {
+          names.of.W <- colnames(W.neu)
+          W.neu <- matrix(rep(W,each=K),ncol=ncol(W.neu))
+          colnames(W.neu) <- names.of.W
+        }
         if(nrow(X)!=1)
         {
-          y[rand.ok]<- family$linkinv(cbind(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok,]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(colnames(W.neu),names(object$ranef))]))}else{
-            y[rand.ok]<- family$linkinv(c(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(names(W.neu),names(object$ranef))]))}
+          y[rand.ok]<- family$linkinv(cbind(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok,]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(colnames(W.neu),names(object$ranef))]))
+        }else{
+            y[rand.ok]<- family$linkinv(c(X[,is.element(colnames(X),names(object$coef))],W.neu)[rand.ok]%*%c(object$coef[is.element(names(object$coef),colnames(X))],object$ranef[match(names(W.neu),names(object$ranef))]))
+        }
       }else{
         W<-NULL
         y<- as.vector(family$linkinv(X[,is.element(colnames(X),names(object$coef))]%*%object$coef[is.element(names(object$coef),colnames(X))]))
@@ -224,6 +244,7 @@ predict.glmmLasso <- function(object,newdata=NULL,new.random.design=NULL,...)
         }}
       
       
+      
       dim.W.single<-rep(0,rnd.len+1)
       for(zu in 1:rnd.len)
       {
@@ -251,6 +272,14 @@ predict.glmmLasso <- function(object,newdata=NULL,new.random.design=NULL,...)
         if(!is.matrix(W.neu))
           W.neu<-t(as.matrix(W.neu))
         colnames(W.neu)<-colnames(W)[as.logical(subj.test.long)]
+        
+        if(!is.null(family$multivariate))
+        {
+          names.of.W <- colnames(W.neu)
+          W.neu <- matrix(rep(W.neu,each=K),ncol=ncol(W.neu))
+          colnames(W.neu) <- names.of.W
+        }
+        
         
         if(dim(X)[1]!=1)
         {

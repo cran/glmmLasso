@@ -25,36 +25,32 @@ blockstand <- function(x, ipen.which, inotpen.which)
   list(x = x.ort, scale.pen = scale.pen, scale.notpen = scale.notpen)
 }
 
-taylor.opt<-function(t_opt,y,X,fixef,ranef,Grad,family,P, K=NULL)
+taylor.opt<-function(t_opt,y,yhelp,X,fixef,ranef,Grad,family,P, K=NULL)
 {
   delta<-c(fixef,ranef)+t_opt*Grad
   Eta<- X%*%delta
   if(is.null(K)){
     mu<-family$linkinv(Eta)
   }else{
-    Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-    mu <- c(t(family$linkinv(Eta_cat)))
+    mu <- family$linkinv(Eta, K)
   }
   
-  loglik <- logLik.glmmLasso(y=y,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE,K=K) 
+  loglik <- logLik.glmmLasso(y=y,yhelp=yhelp,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE,K=K) 
   
   loglik<- -loglik + 0.5*t(delta[(length(fixef)+1):length(delta)]) %*% (P %*% delta[(length(fixef)+1):length(delta)])
   return(loglik)
 }
 
-taylor.opt.noRE<-function(t_opt,y,X,fixef,Grad,family, K=NULL)
+taylor.opt.noRE<-function(t_opt,y,yhelp,X,fixef,Grad,family, K=NULL)
 {
-  
   delta<-fixef+t_opt*Grad
   Eta<- X%*%delta
-  if(is.null(K)){
+ if(is.null(K)){
     mu<-family$linkinv(Eta)
-  }else{
-    Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-    mu <- c(t(family$linkinv(Eta_cat)))
-  }
-  loglik <- -logLik.glmmLasso(y=y,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE, K = K) 
-  
+ }else{
+   mu <- family$linkinv(Eta, K)
+ }
+  loglik <- -logLik.glmmLasso(y=y,yhelp=yhelp,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE, K = K) 
   return(loglik)
 }
 
@@ -144,4 +140,40 @@ correct.cat <- function(aaa,block)
   }
   return(aaa)
 }
-  
+
+#bdiag_m########################################################################
+bdiag_m <- function(lmat) {
+  ## Copyright (C) 2016 Martin Maechler, ETH Zurich
+  if(!length(lmat)) return(new("dgCMatrix"))
+  stopifnot(is.list(lmat), is.matrix(lmat[[1]]),
+            (k <- (d <- dim(lmat[[1]]))[1]) == d[2], # k x k
+            all(vapply(lmat, dim, integer(2)) == k)) # all of them
+  N <- length(lmat)
+  if(N * k > .Machine$integer.max)
+    stop("resulting matrix too large; would be  M x M, with M=", N*k)
+  M <- as.integer(N * k)
+  ## result: an   M x M  matrix
+  new("dgCMatrix", Dim = c(M,M),
+      ## 'i :' maybe there's a faster way (w/o matrix indexing), but elegant?
+      i = as.vector(matrix(0L:(M-1L), nrow=k)[, rep(seq_len(N), each=k)]),
+      p = k * 0L:M,
+      x = as.double(unlist(lmat, recursive=FALSE, use.names=FALSE)))
+}
+
+
+#######################################################
+# update a formula but keep order
+# my.update <- function (old, new, ...) 
+# {
+#   tmp <- .Call(stats:::C_updateform, as.formula(old), as.formula(new))
+#   #tmp <- .Call('C_updateform', as.formula(old), as.formula(new),PACKAGE='stats')
+#   out <- formula(terms.formula(tmp, simplify = TRUE, keep.order = TRUE))
+#   return(out)
+# }
+
+
+# trace(stats::update.formula, at = 4,  print = FALSE,
+#       tracer = quote({
+#         out <- formula(terms.formula(tmp, simplify = TRUE, keep.order = TRUE))
+#       }), where = asNamespace("glmmLasso"))
+

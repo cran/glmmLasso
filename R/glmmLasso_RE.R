@@ -1,181 +1,190 @@
 est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control)
 {  
+    trace(update.formula, at = 4,  print = FALSE,
+        tracer = quote({
+          out <- formula(terms.formula(tmp, simplify = TRUE, keep.order = TRUE))
+        }), where = asNamespace("glmmLasso"))
   
   control<-do.call(glmmLassoControl, control)
-
+  
   ## Print stuff.
   if(is.null(control$flushit))
     control$flushit <- TRUE
-
-  ia <- if(control$flushit) interactive() else FALSE
   
+  ia <- if(control$flushit) interactive() else FALSE
+   
   fix.old<-fix
   
   if(!is.null(fix))
   {  
-  if(grepl("\\*", fix[3]))
-    stop("Usage of '*' not allowed in formula! Please specify the corresponding variables separately.")  
-  
-  ic.dummy<-attr(terms(fix),"intercept")  
-  y <- model.response(model.frame(fix, data))
-  very.old.names<-attr(terms(fix),"term.labels")
-
-  if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
-    fix.help <- update(fix,~ .+1)
-    orig.names <- colnames(model.matrix(fix.help, data))[-1]
-  }else{
-    orig.names <- colnames(model.matrix(fix, data))
-  }
-
-  if(!is.null(control$index))
-  {
-    order.vec<-order(control$index)
-    very.old.names<-very.old.names[order.vec]
-    control$index<-control$index[order.vec]
-  }else{
-    control$index<-1:length(very.old.names)
-  }
-  
-  if(length(control$index)!=length(very.old.names))
-    stop("Length of vector defining the grouping of the variables doesn't match with 
-         the formula!")
-  
-  attr(control$index,"names")<-very.old.names
-  
-  fix<-formula(paste("y~-1+",paste(very.old.names,collapse="+"))) 
-  
-  if(ic.dummy==1)
-  {
-    fix<-update(fix,~ .+1) 
-    control$index<-c(NA,control$index)
-    names(control$index)[1]<-"(Intercept)"
-  }
-  
-  index.new<-c()
-  fac.variab<-logical()
-  for(i in 1:length(control$index))
-  {
-    if(!grepl("as.factor",names(control$index)[i]))
-    {
-      index.new<-c(index.new,control$index[i]) 
-      fac.variab<-c(fac.variab,F)
-    }else{
-      if(!grepl("\\:", names(control$index)[i]))
-      {  
-        fac.name<-strsplit(strsplit(names(control$index)[i],"\\(")[[1]][2],"\\)")[[1]][1]
-      }else{
-        fac.name<-unlist(strsplit(unlist(strsplit(unlist(strsplit(names(control$index)[i],"\\(")),"\\)")),"\\:"))
-        fac.name<-paste(fac.name[2],":",fac.name[length(fac.name)],sep="")
-      }
-      if(!grepl("\\:", fac.name))
-      {
-        length.fac<-length(levels(as.factor(data[,fac.name])))-1
-      }else{
-        length.fac<-(length(levels(data[,strsplit(fac.name,":")[[1]][1]]))-1)*(length(levels(data[,strsplit(fac.name,":")[[1]][2]]))-1)
-      }
-      index.new<-c(index.new,rep(control$index[i],length.fac))
-      fac.variab<-c(fac.variab,rep(T,length.fac))
-    }
-  }
-  
-
-if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
-    fix.help <- update(fix,~ .+1)
-    X <- model.matrix(fix.help, data)[,-1]
-  }else{
-    X <- model.matrix(fix, data)  
-  }
-  
-  K <- NULL
-  
-  if(!is.null(family$multivariate)){
-    y.fac <- as.factor(y)
-    K <- length(levels(y.fac))-1
-    if(family$family=="acat"){
-      y <- c(t(model.matrix(~0+y.fac, contrasts = list(y.fac = "contr.treatment"))[,-length(levels(y.fac))]))
-    }
-    if(family$family=="cumulative"){
-      get.resp <- function(x){as.numeric(as.numeric(x) <= 1:K)}
-      y <- c(sapply(y.fac,get.resp))
-    }
-  }
-  
-  
-  if(!is.null(family$multivariate)){
-    if(all(X[,1]==1)){
-      X <- X[,-1]
-    }
-    names.x <- colnames(X)
-    theta <- matrix(rep(diag(1,K),nrow(X)),ncol=K,byrow=TRUE)
-    X <- cbind(theta, matrix(rep(X,each=K),ncol=ncol(X)))
-    colnames(X) <- c(paste0("theta",1:K),names.x)
-    if(orig.names[1]=="(Intercept)")
-    {  
-      orig.names <- orig.names[-1]
-      index.new <- c(rep(NA,K),index.new[-1]) 
-    }else{
-      index.new <- c(rep(NA,K),index.new) 
-    }  
-    orig.names <- c(paste0("theta",1:K),orig.names)
-  }
-  
-  transf.names <- colnames(X)
-  center <- control$center
-  standardize <- control$standardize
-  ####### Center & Standardization
-  
-  
-  ## Which are the non-penalized parameters?
-  any.notpen    <- any(is.na(index.new))
-  inotpen.which <- which(is.na(index.new))
-  nrnotpen      <- length(inotpen.which)
-  
-  intercept.which <- which(apply(X == 1, 2, all))
-  has.intercept   <- length(intercept.which)
-  
-  ## Index vector of the penalized parameter groups
-  if(any.notpen){
-    ipen <- index.new[-inotpen.which]
-    ipen.which <- split((1:ncol(X))[-inotpen.which], ipen)
-  }else{
-    if(has.intercept)
-      warning("All groups are penalized, including the intercept.")
-    ipen <- index.new
-    ipen.which <- split((1:ncol(X)), ipen)
-  }
-  
-
-  if(center){
-    if(!has.intercept & is.null(family$multivariate)) ## could be removed; already handled above
-      stop("Need intercept term when using center = TRUE")
+    if(grepl("\\*", fix[3]))
+      stop("Usage of '*' not allowed in formula! Please specify the corresponding variables separately.")  
     
-    mu.x                 <- apply(as.matrix(X[,-intercept.which]), 2, mean)
-    X[,-intercept.which] <- sweep(as.matrix(X[,-intercept.which]), 2, mu.x)
-  }
-  
-  ## Standardize the design matrix -> blockwise orthonormalization
-  if(standardize){
-    ##warning("...Using standardized design matrix.\n")
-    stand        <- blockstand(X, ipen.which, inotpen.which)
-    X            <- stand$x
-    scale.pen    <- stand$scale.pen
-    scale.notpen <- stand$scale.notpen
-  }
-  
-  ##############
-  
-  if(ncol(X)==1)
-  {
-    if(colnames(X)=="(Intercept)")
-      stop("No terms to select! Use glmer, glmmPQL or glmmML!")
-  }
+    ic.dummy<-attr(terms(fix),"intercept")  
+    y <- model.response(model.frame(fix, data))
+    very.old.names<-attr(terms(fix, keep.order = TRUE),"term.labels")
+    
+    if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
+      fix.help <- update.formula(fix,~ .+1)
+      orig.names <- colnames(model.matrix(terms(fix.help, keep.order = TRUE), data))[-1]
+    }else{
+      orig.names <- colnames(model.matrix(terms(fix, keep.order = TRUE), data))
+    }
+    
+    if(!is.null(control$index))
+    {
+      order.vec<-order(control$index)
+      very.old.names<-very.old.names[order.vec]
+      control$index<-control$index[order.vec]
+    }else{
+      control$index<-1:length(very.old.names)
+      order.vec <-NULL
+    }
+    
+    if(length(control$index)!=length(very.old.names))
+      stop("Length of vector defining the grouping of the variables doesn't match with 
+           the formula!")
+    
+    attr(control$index,"names")<-very.old.names
+    
+    fix <- formula(paste("y~-1+",paste(very.old.names,collapse="+"))) 
 
-  #old.names<-attr(X,"dimnames")[[2]]
+    if(ic.dummy==1)
+    {
+      fix<-update.formula(fix,~ .+1) 
+      control$index<-c(NA,control$index)
+      names(control$index)[1]<-"(Intercept)"
+    }
+    
+    index.new<-c()
+    fac.variab<-logical()
+    for(i in 1:length(control$index))
+    {
+      if(!grepl("as.factor",names(control$index)[i]))
+      {
+        index.new<-c(index.new,control$index[i]) 
+        fac.variab<-c(fac.variab,F)
+      }else{
+        if(!grepl("\\:", names(control$index)[i]))
+        {  
+          fac.name<-strsplit(strsplit(names(control$index)[i],"\\(")[[1]][2],"\\)")[[1]][1]
+        }else{
+          fac.name<-unlist(strsplit(unlist(strsplit(unlist(strsplit(names(control$index)[i],"\\(")),"\\)")),"\\:"))
+          fac.name<-paste(fac.name[2],":",fac.name[length(fac.name)],sep="")
+        }
+        if(!grepl("\\:", fac.name))
+        {
+          length.fac<-length(levels(as.factor(data[,fac.name])))-1
+        }else{
+          length.fac<-(length(levels(data[,strsplit(fac.name,":")[[1]][1]]))-1)*(length(levels(data[,strsplit(fac.name,":")[[1]][2]]))-1)
+        }
+        index.new<-c(index.new,rep(control$index[i],length.fac))
+        fac.variab<-c(fac.variab,rep(T,length.fac))
+      }
+    }
+    
+  #  browser()
+    
+    
+    
+    if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
+      fix.help <- update.formula(fix,~ .+1)
+      X <- model.matrix(terms(fix.help, keep.order = TRUE), data)[,-1]
+      colnames(X) <- colnames(model.matrix(terms(fix.help, keep.order = TRUE), data)[,-1])
+    }else{
+      X <- model.matrix(terms(fix, keep.order = TRUE), data)  
+      colnames(X) <- colnames(model.matrix(terms(fix, keep.order = TRUE), data))
+    }
+    
+    K <- NULL
+    
+    if(!is.null(family$multivariate)){
+      y.fac <- as.factor(y)
+      K <- length(levels(y.fac))-1
+      if(family$family=="acat"){
+        y <- c(t(model.matrix(~0+y.fac, contrasts = list(y.fac = "contr.treatment"))[,-length(levels(y.fac))]))
+      }
+      if(family$family=="cumulative"){
+        get.resp <- function(x){as.numeric(x <= 1:K)}
+        y <- c(sapply(y,get.resp))
+      }
+      yhelp <- as.matrix(model.matrix(~0+y.fac, contrasts = list(y.fac = "contr.treatment")))
+    }
+    
+     if(!is.null(family$multivariate)){
+      if(all(X[,1]==1)){
+        X <- X[,-1]
+      }
+      names.x <- colnames(X)
+      theta <- matrix(rep(diag(1,K),nrow(X)),ncol=K,byrow=TRUE)
+      X <- cbind(theta, matrix(rep(X,each=K),ncol=ncol(X)))
+      colnames(X) <- c(paste0("theta",1:K),names.x)
+      if(orig.names[1]=="(Intercept)")
+      {  
+        orig.names <- orig.names[-1]
+        index.new <- c(rep(NA,K),index.new[-1]) 
+      }else{
+        index.new <- c(rep(NA,K),index.new) 
+      }  
+      orig.names <- c(paste0("theta",1:K),orig.names)
+    }
 
-  very.old.names<-very.old.names[!is.na(control$index)]
-  ############
-  ############
-  ############
+    transf.names <- colnames(X)
+    center <- control$center
+    standardize <- control$standardize
+    ####### Center & Standardization
+    
+    
+    ## Which are the non-penalized parameters?
+    any.notpen    <- any(is.na(index.new))
+    inotpen.which <- which(is.na(index.new))
+    nrnotpen      <- length(inotpen.which)
+    
+    intercept.which <- which(apply(X == 1, 2, all))
+    has.intercept   <- length(intercept.which)
+    
+    ## Index vector of the penalized parameter groups
+    if(any.notpen){
+      ipen <- index.new[-inotpen.which]
+      ipen.which <- split((1:ncol(X))[-inotpen.which], ipen)
+    }else{
+      if(has.intercept)
+        warning("All groups are penalized, including the intercept.")
+      ipen <- index.new
+      ipen.which <- split((1:ncol(X)), ipen)
+    }
+    
+    if(center){
+      if(!has.intercept & is.null(family$multivariate)) ## could be removed; already handled above
+        stop("Need intercept term when using center = TRUE")
+      
+      mu.x                 <- apply(as.matrix(X[,-intercept.which]), 2, mean)
+      X[,-intercept.which] <- sweep(as.matrix(X[,-intercept.which]), 2, mu.x)
+    }
+    
+    ## Standardize the design matrix -> blockwise orthonormalization
+    if(standardize){
+      ##warning("...Using standardized design matrix.\n")
+      stand        <- blockstand(X, ipen.which, inotpen.which)
+      X            <- stand$x
+      scale.pen    <- stand$scale.pen
+      scale.notpen <- stand$scale.notpen
+    }
+    
+    ##############
+    
+    if(ncol(X)==1)
+    {
+      if(colnames(X)=="(Intercept)")
+        stop("No terms to select! Use glmer, glmmPQL or glmmML!")
+    }
+    
+    #old.names<-attr(X,"dimnames")[[2]]
+    
+    very.old.names<-very.old.names[!is.na(control$index)]
+    ############
+    ############
+    ############
   }else{
     y <- control$y
     X <- control$X
@@ -188,13 +197,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
   
   
   if(control$print.iter)
-#     message()
+    #     message()
   {
     cat(if(ia) "\r" else NULL)
     cat("Iteration  1")
     if(.Platform$OS.type != "unix" & ia) flush.console()
   }
-
+  
   random.factor.help <- FALSE
   if(is.list(rnd))
   {
@@ -206,7 +215,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       
       trmsrnd <- terms(rnd[[1]])
       
-       
+      
       if(!is.factor(data[,names(rnd)[1]]))
       {
         data[,names(rnd)[1]] <- as.factor(data[,names(rnd)[1]])
@@ -223,7 +232,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                               paste(lbl, names(rnd)[1], sep=":")
                             }), collapse=" + "), sep="+") 
       }
-        
+      
       data.new <- data
       data.new[,colnames(X)] <- X
       
@@ -261,26 +270,26 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         #####
         ran.lab.vec <- attr(trmsrnd,"term.labels") 
         random.factor.name <- character()
-
+        
         if(length(seq_along(ran.lab.vec))>0){
           for(er in seq_along(ran.lab.vec))
           {  
-              if(ran.lab.vec[er] %in% colnames(data))
-              {
-                if(is.factor(data[,ran.lab.vec[er]]))
-                {
-                  random.factor.help <- TRUE
-                  random.factor.name <- c(random.factor.name,colnames(model.matrix(formula(paste0("~",ran.lab.vec[er])), data[1,]))[-1])
-                }else{
-                  random.factor.name <- c(random.factor.name,ran.lab.vec[er])
-                }
-              }else if(substr(ran.lab.vec[er],1,9)=="as.factor")
+            if(ran.lab.vec[er] %in% colnames(data))
+            {
+              if(is.factor(data[,ran.lab.vec[er]]))
               {
                 random.factor.help <- TRUE
-                name.help <- strsplit(strsplit(ran.lab.vec[er],"\\(")[[1]][2],"\\)")[[1]][1]
-                data[,name.help] <- as.factor(data[,name.help])
-                random.factor.name <- c(random.factor.name,colnames(model.matrix(formula(paste0("~",name.help)), data[1,]))[-1])
-              }}}
+                random.factor.name <- c(random.factor.name,colnames(model.matrix(formula(paste0("~",ran.lab.vec[er])), data[1,]))[-1])
+              }else{
+                random.factor.name <- c(random.factor.name,ran.lab.vec[er])
+              }
+            }else if(substr(ran.lab.vec[er],1,9)=="as.factor")
+            {
+              random.factor.help <- TRUE
+              name.help <- strsplit(strsplit(ran.lab.vec[er],"\\(")[[1]][2],"\\)")[[1]][1]
+              data[,name.help] <- as.factor(data[,name.help])
+              random.factor.name <- c(random.factor.name,colnames(model.matrix(formula(paste0("~",name.help)), data[1,]))[-1])
+            }}}
         random.factor.name <- c(names(rnd)[zu],paste(names(rnd)[zu],random.factor.name,sep=":"))
         #####
         if(!is.factor(data[,names(rnd)[zu]]))
@@ -299,7 +308,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                       paste(lbl, names(rnd)[zu], sep=":")
                                     }), collapse=" + "), sep="+") }
         W_start <- model.matrix(formula(newrndfrml[[zu]]), data)
-
+        
         rnlabels<-terms(formula(newrndfrml[[zu]]))
         if(random.factor.help) random.labels[[zu]]<-random.factor.name else random.labels[[zu]]<-attr(rnlabels,"term.labels")
         k1<-table(data[,colnames(data)==(names(rnd)[zu])])   
@@ -319,7 +328,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       }
     }
     subject.names<-names(rnd)
-
+    
     if(!is.null(family$multivariate))
     {
       names.of.W <- colnames(W)
@@ -346,7 +355,6 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
     subject.names<-colnames(rnd)  
   }
 
-  
   block<-as.numeric(table(index.new[!is.na(index.new)]))
   
   BLOCK<-FALSE
@@ -356,7 +364,15 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
   lin<-ncol(X)
   
   if(is.null(control$start))
-    control$start<-c(rep(0,(lin+n%*%s)))
+  {
+    control$start<-c(rep(0,lin+n%*%s))
+    if(family$family=="gaussian")
+       control$start[1] <- mean(y)
+    if(family$family=="poisson")
+       control$start[1] <- log(mean(y))
+    if(family$family=="binomial")
+       control$start[1] <- log(mean(y)/(1-mean(y)))
+  }  
   
   if(family$family=="cumulative" & all(control$start==0))
     control$start[1:K] <- ((1:K)-mean(1:K))/K
@@ -373,19 +389,21 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
   N<-length(y)
   
   beta_null<-control$start[1:lin]
-  if(is.null(attr(beta_null,"names")))
-    attr(beta_null,"names")<-orig.names
-  beta_null<-beta_null[colnames(X)]
+  # if(is.null(attr(beta_null,"names")))
+  #   attr(beta_null,"names")<-orig.names
+  # beta_null<-beta_null[colnames(X)]
+  if(!is.null(order.vec))
+    beta_null<-beta_null[c(1,order.vec+1)]
+  attr(beta_null,"names") <- colnames(X)
   
   ranef_null<-control$start[(lin+1):(lin+n%*%s)]
   
-  Z_fastalles<-X
-
-    if(!control$overdispersion && family$family=="gaussian")
+  #Z_fastalles<-X
+  
+  if(!control$overdispersion && family$family=="gaussian")
     control$overdispersion<-T
   
   phi <- 1
-
   #######################################################################  
   ######################## allow switch to Newton Raphson ###############
   #######################################################################  
@@ -404,15 +422,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       }
       
       if(is.null(family$multivariate)){
-        D<-family$mu.eta(Eta_start)
         Mu<-family$linkinv(Eta_start)
+        D<-family$mu.eta(Eta_start)
         SigmaInv <- 1/family$variance(Mu)
       }else{
-        Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-        Mu_cat <- family$linkinv(Eta_cat)
-        D <- family$deriv.mat(Mu_cat)
-        SigmaInv <- family$SigmaInv(Mu_cat)
-        Mu <- c(t(Mu_cat))
+        D <- family$deriv.mat(Eta_start, K)
+        Mu<-family$linkinv(Eta_start, K)
+        SigmaInv <- family$SigmaInv(Mu, K)
       }
       
       if(rnd.len==1)
@@ -442,7 +458,8 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       
       q<-ncol(X)
 
-      Z_alles<-cbind(X,U,W)
+      Z_fastalles<-cbind(X,U)
+      Z_alles<-cbind(Z_fastalles,W)
       ########################################################## some definitions ################################################
       Delta<-matrix(0,control$steps,(lin+n%*%s))
       Delta[1,1:lin]<-beta_null[final.names]
@@ -464,7 +481,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
 
       Q<-list()
       Q[[1]]<-Q_start
-      
+
       l=1
       
       if(rnd.len==1)
@@ -505,7 +522,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       if(is.null(family$multivariate)){
       score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
       }else{
-      score_vec<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+      score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
       }  
       lambda.max<-max(abs(score_vec[(q+1):lin]))
 
@@ -521,8 +538,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
-#      ranef.logLik<- -0.5*t(Delta_start[(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta_start[(lin+1):(lin+n%*%s)])
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
                                          Grad=score_vec,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
                                          lower = 0, upper = Inf,K=K))
       
@@ -555,16 +571,14 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             Mu<-family$linkinv(Eta)
             SigmaInv <- 1/family$variance(Mu)
           }else{
-            Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-            Mu_cat <- family$linkinv(Eta_cat)
-            D <- family$deriv.mat(Mu_cat)
-            SigmaInv <- family$SigmaInv(Mu_cat)
-            Mu <- c(t(Mu_cat))
+            D <- family$deriv.mat(Eta, K)
+            Mu<-family$linkinv(Eta, K)
+            SigmaInv <- family$SigmaInv(Mu, K)
           }
           
           ranef.logLik<- -0.5*t(Delta[1,(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta[1,(lin+1):(lin+n%*%s)])
           
-          logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+          logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
           
           active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,n%*%s))
           Z_aktuell<-Z_alles[,active]
@@ -603,15 +617,14 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
               F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
             }else{
-              F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+              W_opt <- RcppEigenProd2(D, SigmaInv)
+              F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
             }
             
-            ## include here              
-            
             InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-            if(class(InvFisher2)=="try-error")
+            if(inherits(InvFisher2, "try-error"))
               InvFisher2<-try(solve(F_gross),silent=T)
-            if(class(InvFisher2)=="try-error")
+            if(inherits(InvFisher2, "try-error"))
             {
               #stop("Fisher matrix not invertible")  
               half.index<-half.index+1  
@@ -684,7 +697,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                 Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                 Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                 Q_solvetest<-try(solve(Q1))
-                if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                   break
               }
             }   
@@ -732,7 +745,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                 Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                 Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                 Q_solvetest<-try(solve(Q1))
-                if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                   break
               }
             }
@@ -779,7 +792,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(is.null(family$multivariate)){
           score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
         }else{
-          score_old2<- score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+          score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
         }  
         
         lambda.max<-max(abs(score_vec2[(q+1):lin]))
@@ -793,11 +806,10 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         
         score_vec2[(q+1):lin] <- grad.1
         
-        
         crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
         t_edge<-crit.obj$min.rate
         
-        optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
+        optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
                                            Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
                                            lower = 0, upper = Inf,K=K))
         
@@ -844,13 +856,14 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
             F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
           }else{
-            F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+            F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
           }
 
           InvFisher<-try(chol2inv(chol(F_gross)),silent=T)
-          if(class(InvFisher)=="try-error")
+          if(inherits(InvFisher, "try-error"))
             InvFisher<-try(solve(F_gross),silent=T)
-          if(class(InvFisher)=="try-error")
+          if(inherits(InvFisher, "try-error"))
           {
             half.index<-half.index+1  
           }else{
@@ -925,21 +938,19 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               }
               
               Eta<-Z_alles%*%Delta[l,]
-              if(is.null(family$multivariate)){
+               if(is.null(family$multivariate)){
                 D<-family$mu.eta(Eta)
                 Mu<-family$linkinv(Eta)
                 SigmaInv <- 1/family$variance(Mu)
               }else{
-                Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-                Mu_cat <- family$linkinv(Eta_cat)
-                D <- family$deriv.mat(Mu_cat)
-                SigmaInv <- family$SigmaInv(Mu_cat)
-                Mu <- c(t(Mu_cat))
+                D <- family$deriv.mat(Eta, K)
+                Mu<-family$linkinv(Eta, K)
+                SigmaInv <- family$SigmaInv(Mu, K)
               }
               
               ranef.logLik<- -0.5*t(Delta[l,(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta[l,(lin+1):(lin+n%*%s)])
               
-              logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+              logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
               
               active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,n%*%s))
               Z_aktuell<-Z_alles[,active]
@@ -976,15 +987,17 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                 }
                 if(is.null(family$multivariate)){
                   D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-                  F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+                  W_opt <- D*SigmaInv*D
+                  F_gross<-t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
                 }else{
-                  F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+                  W_opt <- RcppEigenProd2(D, SigmaInv)
+                  F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
                 }
                 
                 InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-                if(class(InvFisher2)=="try-error")
+                if(inherits(InvFisher2, "try-error"))
                   InvFisher2<-try(solve(F_gross),silent=T)
-                if(class(InvFisher2)=="try-error")
+                if(inherits(InvFisher2, "try-error"))
                 {
                   half.index<-half.index+1  
                 }else{
@@ -1031,7 +1044,6 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               aktuell_vec<-!is.element(Delta[l,1:(lin)],0)
               X_aktuell<-Z_fastalles[,aktuell_vec]
               
-              
               if(rnd.len==1)
               {
                 
@@ -1057,7 +1069,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                     Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                     Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                     Q_solvetest<-try(solve(Q1))
-                    if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                    if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                       break
                   }
                 }   
@@ -1096,7 +1108,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                     Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                     Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                     Q_solvetest<-try(solve(Q1))
-                    if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                    if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                       break
                   }
                 }
@@ -1141,7 +1153,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             if(is.null(family$multivariate)){
               score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[l,]
             }else{
-              score_old2<-score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[l,]
+              score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[l,]
             }  
             lambda.max<-max(abs(score_vec2[(q+1):lin]))
             
@@ -1156,7 +1168,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
             t_edge<-crit.obj$min.rate
             
-            optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
+            optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
                                                Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
                                                lower = 0, upper = Inf,K=K))
             
@@ -1201,13 +1213,14 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                 D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
                 F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
               }else{
-                F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+                W_opt <- RcppEigenProd2(D, SigmaInv)
+                F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
               }
 
               InvFisher3<-try(chol2inv(chol(F_gross)),silent=T)
-              if(class(InvFisher3)=="try-error")
+              if(inherits(InvFisher3, "try-error"))
                 InvFisher3<-try(solve(F_gross),silent=T)
-              if(class(InvFisher3)=="try-error")
+              if(inherits(InvFisher3, "try-error"))
               {
                 half.index<-half.index+1  
               }else{
@@ -1245,9 +1258,8 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             break
           Eta.old<-Eta
         }}
-      
-      if(control$method!="EM")
-      {  
+      ############################################################################
+
         if(rnd.len==1)
         {
           if(s==1)
@@ -1275,26 +1287,32 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             }
           }
         }
+
         if(is.null(family$multivariate)){
-          D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-          F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
-        }else{
-          F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+          if(control$method!="EM")
+          {
+            D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
+            W_opt <- D*SigmaInv*D
+          }  
+          F_gross <- t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
+         }else{
+           if(control$method!="EM")
+             W_opt <- RcppEigenProd2(D, SigmaInv)
+          W_inv_t <- RcppEigenSpChol(W_opt)
+          F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
         }
 
         InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher2)=="try-error")
+        if(inherits(InvFisher2, "try-error"))
           InvFisher2<-try(solve(F_gross),silent=T)
-      }
 
         if(is.null(family$multivariate)){
-          FinalHat<-(Z_aktuell*sqrt(D*SigmaInv*D))%*%(InvFisher2%*%t(Z_aktuell*sqrt(D*SigmaInv*D)))
+          Z_temp <- Z_aktuell*sqrt(W_opt)
+          FinalHat.df<-Z_temp%*%InvFisher2%*%t(Z_temp)
         }else{
-          W_inv_t <- chol(D%*%(SigmaInv%*%t(D)))
-          FinalHat<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
+          FinalHat.df <- RcppEigenProd3(W_inv_t, Z_aktuell, InvFisher2)
         }
-        df<-sum(diag(FinalHat))
-      
+        df<-sum(diag(FinalHat.df))
       if(control$overdispersion)
         phi<-(sum((y-Mu)^2/family$variance(Mu)))/(N-df)
 
@@ -1334,16 +1352,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                    phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                    Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           
-          if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=q_start,K=K,
                                       Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                                       family=family,method=control$method.final,overdispersion=control$overdispersion,
                                       phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                       eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
@@ -1353,23 +1371,23 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                                 family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                 phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                 eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-          if(class(glmm_fin)=="try-error"|| glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error")|| glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_multi_random(y,Z_fastalles[,aaa],W,k,q_start=q_start,K=K,
                                                    Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                                                    family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                    phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                    eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)    
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
         }
         
         
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {
           cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
@@ -1381,7 +1399,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       }  
       Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
-      if(class(glmm_fin)!="try-error")
+      if(!inherits(glmm_fin, "try-error"))
       {
         Delta_neu2<-Delta_neu
         Delta_neu2[c(aaa,rep(T,n%*%s))]<-glmm_fin$Delta
@@ -1394,9 +1412,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(is.null(family$multivariate)){
           Mu_opt<-family$linkinv(Eta_opt)
         }else{
-          Eta_cat <- matrix(Eta_opt, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          Mu_opt <- c(t(Mu_cat))
+          Mu_opt <- family$linkinv(Eta_opt, K)
         }
       }else{
         glmm_fin<-list()
@@ -1463,7 +1479,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(any.notpen)
         {
           Delta_neu[inotpen.which] <- (1 / scale.notpen) * Delta_neu[inotpen.which]
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
             Standard_errors[inotpen.which] <- (1 / scale.notpen) * Standard_errors[inotpen.which]
         }
         ## For df > 1 we have to use a matrix inversion to go back to the
@@ -1471,13 +1487,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         for(j in 1:length(ipen.which)){
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
           {
             Sc.help <- solve(scale.pen[[j]])
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
           }
         }
-        if(s>1)
+        if(any(s>1))
           warning("Random slopes are not standardized back!")
       }
       
@@ -1493,8 +1509,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
         
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K)
-        
+        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -1513,8 +1528,6 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       }else{
         warning("For the specified family (so far) no AIC and BIC are available!")  
       }
-      
-      
       
       ret.obj=list()
       ret.obj$aic<-aic
@@ -1539,6 +1552,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
       ret.obj$W <- W
+      ret.obj$K <- K
       ret.obj$df<-df
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
@@ -1608,11 +1622,9 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         Mu<-family$linkinv(Eta_start)
         SigmaInv <- 1/family$variance(Mu)
       }else{
-        Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-        Mu_cat <- family$linkinv(Eta_cat)
-        D <- family$deriv.mat(Mu_cat)
-        SigmaInv <- family$SigmaInv(Mu_cat)
-        Mu <- c(t(Mu_cat))
+        D <- family$deriv.mat(Eta_start, K)
+        Mu<-family$linkinv(Eta_start, K)
+        SigmaInv <- family$SigmaInv(Mu, K)
       }
       
       if(rnd.len==1)
@@ -1641,7 +1653,9 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       
       q<-dim(X)[2]
       
-      Z_alles<-cbind(X,U,Phi,W)
+      Z_fastalles<-cbind(X,U)
+      Z_alles<-cbind(Z_fastalles,Phi,W)
+      
       ########################################################## some definitions ################################################
       Delta<-matrix(0,control$steps,(lin+dim.smooth+n%*%s))
       Delta[1,1:lin]<-beta_null[final.names]
@@ -1719,7 +1733,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       if(is.null(family$multivariate)){
         score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
       }else{
-        score_vec<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+        score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
       }  
       lambda.max<-max(abs(score_vec[(q+1):lin]))
       
@@ -1732,13 +1746,10 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       
       score_vec[(q+1):lin] <- grad.1
       
-      
       crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
-      #ranef.logLik<- -0.5*t(Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
-      
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                                          Grad=score_vec,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
                                          lower = 0, upper = Inf,K=K))
       
@@ -1771,15 +1782,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             Mu<-family$linkinv(Eta)
             SigmaInv <- 1/family$variance(Mu)
           }else{
-            Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-            Mu_cat <- family$linkinv(Eta_cat)
-            D <- family$deriv.mat(Mu_cat)
-            SigmaInv <- family$SigmaInv(Mu_cat)
-            Mu <- c(t(Mu_cat))
+            D <- family$deriv.mat(Eta, K)
+            Mu<-family$linkinv(Eta, K)
+            SigmaInv <- family$SigmaInv(Mu, K)
           }          
           ranef.logLik<- -0.5*t(Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
           
-          logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+          logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
           
           active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
           Z_aktuell<-Z_alles[,active]
@@ -1820,12 +1829,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
               F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
             }else{
-              F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+              W_opt <- RcppEigenProd2(D, SigmaInv)
+              F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
             }
             InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-            if(class(InvFisher2)=="try-error")
+            if(inherits(InvFisher2, "try-error"))
               InvFisher2<-try(solve(F_gross),silent=T)
-            if(class(InvFisher2)=="try-error")
+            if(inherits(InvFisher2, "try-error"))
             {
               #stop("Fisher matrix not invertible")  
               half.index<-half.index+1  
@@ -1874,14 +1884,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           
           if(rnd.len==1)
           {
-            
             if(s==1)
             {
               upp<-min(20,50*Q_start)
               low<-1e-14
               optim.obj<-try(nlminb(sqrt(Q_start),likelihood_nlminb,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),
                                     Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp))
-              if(class(optim.obj)=="try-error")
+              if(inherits(optim.obj, "try-error"))
                 optim.obj<-try(bobyqa(sqrt(Q_start),likelihood_nlminb,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),
                                       Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp))
               Q1<-as.matrix(optim.obj$par)^2
@@ -1904,7 +1913,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                 Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                 Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                 Q_solvetest<-try(solve(Q1))
-                if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                   break
               }
             }   
@@ -1951,7 +1960,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                 Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                 Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                 Q_solvetest<-try(solve(Q1))
-                if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                   break
               }
             }
@@ -2001,7 +2010,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(is.null(family$multivariate)){
           score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
         }else{
-          score_old2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+          score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
         }  
         lambda.max<-max(abs(score_vec2[(q+1):lin]))
         
@@ -2016,7 +2025,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
         t_edge<-crit.obj$min.rate
         
-        optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+        optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                                            Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
                                            lower = 0, upper = Inf,K=K))
         
@@ -2065,14 +2074,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           }
           if(is.null(family$multivariate)){
             D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-            F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+            W_opt <- D*SigmaInv*D
+            F_gross<-t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
           }else{
-            F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+            F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
           }
           InvFisher<-try(chol2inv(chol(F_gross)),silent=T)
-          if(class(InvFisher)=="try-error")
+          if(inherits(InvFisher, "try-error"))
             InvFisher<-try(solve(F_gross),silent=T)
-          if(class(InvFisher)=="try-error")
+          if(inherits(InvFisher, "try-error"))
           {
             half.index<-half.index+1  
           }else{
@@ -2153,16 +2164,14 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                 Mu<-family$linkinv(Eta)
                 SigmaInv <- 1/family$variance(Mu)
               }else{
-                Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-                Mu_cat <- family$linkinv(Eta_cat)
-                D <- family$deriv.mat(Mu_cat)
-                SigmaInv <- family$SigmaInv(Mu_cat)
-                Mu <- c(t(Mu_cat))
+                D <- family$deriv.mat(Eta, K)
+                Mu<-family$linkinv(Eta, K)
+                SigmaInv <- family$SigmaInv(Mu, K)
               }
               
               ranef.logLik<- -0.5*t(Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
               
-              logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+              logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
               
               active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
               Z_aktuell<-Z_alles[,active]
@@ -2203,14 +2212,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                  }
                 if(is.null(family$multivariate)){
                   D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-                  F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+                  W_opt <- D*SigmaInv*D
+                  F_gross<-t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
                 }else{
-                  F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+                  W_opt <- RcppEigenProd2(D, SigmaInv)
+                  F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
                 }
                 InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-                if(class(InvFisher2)=="try-error")
+                if(inherits(InvFisher2, "try-error"))
                   InvFisher2<-try(solve(F_gross),silent=T)
-                if(class(InvFisher2)=="try-error")
+                if(inherits(InvFisher2, "try-error"))
                 {
                   half.index<-half.index+1  
                 }else{
@@ -2267,7 +2278,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                     low<-0
                   
                   optim.obj<-try(nlminb(sqrt(Q1),likelihood_nlminb,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp))
-                  if(class(optim.obj)=="try-error")
+                  if(inherits(optim.obj, "try-error"))
                     optim.obj<-bobyqa(sqrt(Q1),likelihood_nlminb,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp)
                   
                   Q1<-as.matrix(optim.obj$par)^2
@@ -2286,7 +2297,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                     Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                     Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                     Q_solvetest<-try(solve(Q1))
-                    if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                    if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                       break
                   }
                 }   
@@ -2304,7 +2315,6 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                   
                   optim.obj<-try(bobyqa(Q1_vec,likelihood_block,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),Eta_tilde=Eta_tilde,n=n,s=s,k=k,Betadach=Betadach,W=W, lower=low,upper=upp,rnd.len=rnd.len))
                   optim.vec<-optim.obj$par
-                  
                   
                   Q1<-matrix(0,sum(s),sum(s))
                   diag(Q1)[1:s[1]]<-optim.vec[1:s[1]]
@@ -2326,7 +2336,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                     Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                     Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                     Q_solvetest<-try(solve(Q1))
-                    if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                    if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                       break
                   }
                 }
@@ -2373,7 +2383,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             if(is.null(family$multivariate)){
               score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[l,]
             }else{
-              score_old2<-score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[l,]
+              score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[l,]
             }  
             lambda.max<-max(abs(score_vec2[(q+1):lin]))
             
@@ -2388,7 +2398,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
             t_edge<-crit.obj$min.rate
             
-            optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+            optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                                                Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
                                                lower = 0, upper = Inf,K=K))
             
@@ -2437,12 +2447,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                 D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
                 F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
               }else{
-                F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+                W_opt <- RcppEigenProd2(D, SigmaInv)
+                F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
               }
               InvFisher3<-try(chol2inv(chol(F_gross)),silent=T)
-              if(class(InvFisher3)=="try-error")
+              if(inherits(InvFisher3, "try-error"))
                 InvFisher3<-try(solve(F_gross),silent=T)
-              if(class(InvFisher3)=="try-error")
+              if(inherits(InvFisher3, "try-error"))
               {
                 half.index<-half.index+1  
               }else{
@@ -2483,9 +2494,8 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             break
           Eta.old<-Eta
         }}
-      
-      if(control$method!="EM")
-      {  
+##############################################################################      
+
         if(rnd.len==1)
         {
           if(s==1)
@@ -2518,23 +2528,28 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           }
         }
         if(is.null(family$multivariate)){
-          D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-          F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+          if(control$method!="EM")
+          {
+            D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
+            W_opt <- D*SigmaInv*D
+          }  
+          F_gross <- t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
         }else{
-          F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+          if(control$method!="EM")
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+          W_inv_t <- RcppEigenSpChol(W_opt)
+          F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
         }
         InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher2)=="try-error")
+        if(inherits(InvFisher2, "try-error"))
           InvFisher2<-try(solve(F_gross),silent=T)
-      }          
       
       if(is.null(family$multivariate)){
-        FinalHat<-(Z_aktuell*sqrt(D*SigmaInv*D))%*%(InvFisher2%*%t(Z_aktuell*sqrt(D*SigmaInv*D)))
+        FinalHat.df<-(Z_aktuell*sqrt(W_opt))%*%InvFisher2%*%t(Z_aktuell*sqrt(W_opt))
       }else{
-        W_inv_t <- chol(D%*%(SigmaInv%*%t(D)))
-        FinalHat<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
+        FinalHat.df <- RcppEigenProd3(W_inv_t, Z_aktuell, InvFisher2)
       }
-      df<-sum(diag(FinalHat))
+      df<-sum(diag(FinalHat.df))
       
       if(control$overdispersion)
         phi<-(sum((y-Mu)^2/family$variance(Mu)))/(N-df)
@@ -2569,7 +2584,6 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           Q.min<-min(Qfinal)-1e-10
         }
         
-        
         if(rnd.len==1)
         {
           glmm_fin<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,n,penal.vec,q_start=Qfinal,K=K,
@@ -2577,16 +2591,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                           s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                           phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                           Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-          if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,n,penal.vec,q_start=q_start,K=K,
                                              Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                              s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                              phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                              Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
@@ -2596,22 +2610,22 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                                        s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                        phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                                        Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-          if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_multi_random_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=q_start,K=K,
                                                           Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                                           s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                           phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                           eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
         }
         
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {
           cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
@@ -2624,7 +2638,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       }  
       Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
-      if(class(glmm_fin)!="try-error")
+      if(!inherits(glmm_fin, "try-error"))
       {
         EDF.matrix<-glmm_fin$EDF.matrix
         complexity.smooth<-sum(diag(EDF.matrix)[c(T,rep(F,sum(aaa)-1),rep(T,dim.smooth),rep(F,n%*%s))])  
@@ -2639,9 +2653,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(is.null(family$multivariate)){
           Mu_opt<-family$linkinv(Eta_opt)
         }else{
-          Eta_cat <- matrix(Eta_opt, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          Mu_opt <- c(t(Mu_cat))
+          Mu_opt <- family$linkinv(Eta_opt, K)
         }
       }else{
         glmm_fin<-list()
@@ -2682,7 +2694,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               }}
           }
         }
-        if(class(InvFisher2)=="try-error")
+        if(inherits(InvFisher2, "try-error"))
         {
           warning("No EDF's for smooth functions available, as Fisher matrix not invertible!")
           complexity.smooth<-dim.smooth
@@ -2690,9 +2702,12 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           ###### EDF of spline; compare Wood's Book on page 167
           if(is.null(family$multivariate)){
             D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-            EDF.matrix<-InvFisher2%*%(t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P1a)
+            W_opt <- D*SigmaInv*D
+            EDF.matrix<-InvFisher2%*%(t(Z_aktuell)%*%(Z_aktuell*W_opt)+P1a)
           }else{
-            EDF.matrix<-InvFisher2%*%(t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D)))%*%Z_aktuell+P1a)
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+            F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P1a
+            EDF.matrix<-InvFisher2%*%F_gross
           }
           complexity.smooth<-sum(diag(EDF.matrix)[c(T,rep(F,sum(aaa)-1),rep(T,dim.smooth),rep(F,n%*%s))])
         }
@@ -2755,7 +2770,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(any.notpen)
         {
           Delta_neu[inotpen.which] <- (1 / scale.notpen) * Delta_neu[inotpen.which]
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
             Standard_errors[inotpen.which] <- (1 / scale.notpen) * Standard_errors[inotpen.which]
         }
         ## For df > 1 we have to use a matrix inversion to go back to the
@@ -2763,13 +2778,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         for(j in 1:length(ipen.which)){
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
           {
             Sc.help <- solve(scale.pen[[j]])
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
           }
         }
-        if(s>1)
+        if(any(s>1))
           warning("Random slopes are not standardized back!")
       }
       
@@ -2780,13 +2795,12 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           sum(Delta_neu[1:lin][-intercept.which,drop = FALSE] * mu.x)   
       }
       
-            
       aic<-NaN
       bic<-NaN
       
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K)
+        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -2836,6 +2850,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
       ret.obj$W <- W
+      ret.obj$K <- K
       ret.obj$df<-df
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
@@ -2864,13 +2879,10 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         Mu<-family$linkinv(Eta_start)
         SigmaInv <- 1/family$variance(Mu)
       }else{
-        Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-        Mu_cat <- family$linkinv(Eta_cat)
-        D <- family$deriv.mat(Mu_cat)
-        SigmaInv <- family$SigmaInv(Mu_cat)
-        Mu <- c(t(Mu_cat))
+        D <- family$deriv.mat(Eta_start, K)
+        Mu<-family$linkinv(Eta_start, K)
+        SigmaInv <- family$SigmaInv(Mu, K)
       }
-      
       
       if(rnd.len==1)
       {
@@ -2904,7 +2916,8 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       
       q<-dim(X)[2]
       
-      Z_alles<-cbind(X,U,W)
+      Z_fastalles<-cbind(X,U)
+      Z_alles<-cbind(Z_fastalles,W)
       
       ########################################################## some definitions ################################################
       Delta<-matrix(0,control$steps,(lin+n%*%s))
@@ -2966,7 +2979,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       if(is.null(family$multivariate)){
         score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
       }else{
-        score_vec<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+        score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
       }  
       lambda.max<-max(abs(score_vec[(q+1):lin]))
       
@@ -2977,16 +2990,12 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         grad.1<-gradient.lasso(score.beta=score_vec[(q+1):lin],b=Delta[1,(q+1):lin],lambda.b=lambda)
       }
       
-      
       score_vec[(q+1):lin] <- grad.1
-      
       
       crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
-#      ranef.logLik<- -0.5*t(Delta_start[(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta_start[(lin+1):(lin+n%*%s)])
-      
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
                                          Grad=score_vec,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
                                          lower = 0, upper = Inf,K=K))
       
@@ -3015,16 +3024,14 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           Mu<-family$linkinv(Eta)
           SigmaInv <- 1/family$variance(Mu)
         }else{
-          Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          D <- family$deriv.mat(Mu_cat)
-          SigmaInv <- family$SigmaInv(Mu_cat)
-          Mu <- c(t(Mu_cat))
+          D <- family$deriv.mat(Eta, K)
+          Mu<-family$linkinv(Eta, K)
+          SigmaInv <- family$SigmaInv(Mu, K)
         }
         
         ranef.logLik<- -0.5*t(Delta[1,(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta[1,(lin+1):(lin+n%*%s)])
         
-        logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+        logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,n%*%s))
         Z_aktuell<-Z_alles[,active]
@@ -3061,14 +3068,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           }
           if(is.null(family$multivariate)){
             D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-            F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+            W_opt <- D*SigmaInv*D
+            F_gross<-t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
           }else{
-            F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+            F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
           }
           InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-          if(class(InvFisher2)=="try-error")
+          if(inherits(InvFisher2, "try-error"))
             InvFisher2<-try(solve(F_gross),silent=T)
-          if(class(InvFisher2)=="try-error")
+          if(inherits(InvFisher2, "try-error"))
           {
             #stop("Fisher matrix not invertible")  
             half.index<-half.index+1  
@@ -3141,7 +3150,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
               Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
               Q_solvetest<-try(solve(Q1))
-              if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+              if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                 break
             }
           }   
@@ -3189,13 +3198,12 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
               Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
               Q_solvetest<-try(solve(Q1))
-              if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+              if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                 break
             }
           }
         }}
-      
-      Q[[2]]<-Q1
+       Q[[2]]<-Q1
       
       if(rnd.len==1)
       {
@@ -3234,7 +3242,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       if(is.null(family$multivariate)){
         score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
       }else{
-        score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+        score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
       }  
       lambda.max<-max(abs(score_vec2[(q+1):lin]))
       
@@ -3249,7 +3257,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
                                          Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
                                          lower = 0, upper = Inf,K=K))
       
@@ -3278,7 +3286,6 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             if(.Platform$OS.type != "unix" & ia) flush.console()
           }
           
-                    
           half.index<-0
           
           solve.test2<-FALSE  
@@ -3300,16 +3307,14 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               Mu<-family$linkinv(Eta)
               SigmaInv <- 1/family$variance(Mu)
             }else{
-              Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-              Mu_cat <- family$linkinv(Eta_cat)
-              D <- family$deriv.mat(Mu_cat)
-              SigmaInv <- family$SigmaInv(Mu_cat)
-              Mu <- c(t(Mu_cat))
+              D <- family$deriv.mat(Eta, K)
+              Mu<-family$linkinv(Eta, K)
+              SigmaInv <- family$SigmaInv(Mu, K)
             }
 
             ranef.logLik<- -0.5*t(Delta[l,(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta[l,(lin+1):(lin+n%*%s)])
             
-            logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+            logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
             
             active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,n%*%s))
             Z_aktuell<-Z_alles[,active]
@@ -3346,14 +3351,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               }
               if(is.null(family$multivariate)){
                 D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-                F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+                W_opt <- D*SigmaInv*D
+                F_gross<-t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
               }else{
-                F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+                W_opt <- RcppEigenProd2(D, SigmaInv)
+                F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
               }
               InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-              if(class(InvFisher2)=="try-error")
+              if(inherits(InvFisher2, "try-error"))
                 InvFisher2<-try(solve(F_gross),silent=T)
-              if(class(InvFisher2)=="try-error")
+              if(inherits(InvFisher2, "try-error"))
               {
                 half.index<-half.index+1  
               }else{
@@ -3401,10 +3408,8 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             aktuell_vec<-!is.element(Delta[l,1:(lin)],0)
             X_aktuell<-Z_fastalles[,aktuell_vec]
             
-            
             if(rnd.len==1)
             {
-              
               if(s==1)
               {
                 if(Q1<1e-14)
@@ -3427,7 +3432,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                   Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                   Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                   Q_solvetest<-try(solve(Q1))
-                  if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                  if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                     break
                 }
               }   
@@ -3466,7 +3471,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                   Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                   Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                   Q_solvetest<-try(solve(Q1))
-                  if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                  if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                     break
                 }
               }
@@ -3511,7 +3516,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           if(is.null(family$multivariate)){
             score_old2<-score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[l,]
           }else{
-            score_old2<-score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[l,]
+            score_old2<-score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[l,]
           }  
           lambda.max<-max(abs(score_vec2[(q+1):lin]))
           
@@ -3526,7 +3531,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           
           t_edge<-crit.obj$min.rate
 
-          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
+          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
                                              Grad=score_vec2,family=family,P=diag(P1[(lin+1):(lin+n%*%s)]), 
                                              lower = 0, upper = Inf,K=K))
           
@@ -3545,9 +3550,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             break
           Eta.old<-Eta
         }}
-      
-      if(control$method!="EM")
-      {  
+##############################################################      
         if(rnd.len==1)
         {
           if(s==1)
@@ -3575,26 +3578,32 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             }
           }
         }
+        
         if(is.null(family$multivariate)){
+          if(control$method!="EM")
+          {
           D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-          F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+          W_opt <- D*SigmaInv*D
+          }  
+          F_gross <- t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
         }else{
-          F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+          if(control$method!="EM")
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+          W_inv_t <- RcppEigenSpChol(W_opt)
+          F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
         }
         
         InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher2)=="try-error")
+        if(inherits(InvFisher2, "try-error"))
           InvFisher2<-try(solve(F_gross),silent=T)
-      }
+      
       
       if(is.null(family$multivariate)){
-        FinalHat<-(Z_aktuell*sqrt(D*SigmaInv*D))%*%(InvFisher2%*%t(Z_aktuell*sqrt(D*SigmaInv*D)))
+        FinalHat.df<-(Z_aktuell*sqrt(W_opt))%*%InvFisher2%*%t(Z_aktuell*sqrt(W_opt))
       }else{
-        W_inv_t <- chol(D%*%(SigmaInv%*%t(D)))
-        FinalHat<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
+        FinalHat.df <- RcppEigenProd3(W_inv_t, Z_aktuell, InvFisher2)
       }
-
-      df<-sum(diag(FinalHat))
+      df<-sum(diag(FinalHat.df))
       if(abs(df)>1e+10)
       df<-Inf
         
@@ -3613,8 +3622,6 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       Delta_neu<-Delta[l,]
       Mu_opt<-Mu
       Qfinal<-Q[[l+1]]
-      
-#      browser()
       
       aaa<-!is.element(Delta_neu[1:(lin)],0)
       aaa <- correct.cat(aaa,c(rep(1,sum(is.na(index.new))),block))
@@ -3640,16 +3647,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                    phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                    Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
           
-          if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final(y,Z_fastalles[,aaa],W,k,n,q_start=q_start,K=K,
                                       Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,steps=control$maxIter,
                                       family=family,method=control$method.final,overdispersion=control$overdispersion,
                                       phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                       eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
@@ -3659,22 +3666,22 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                                 family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                 phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                 eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-          if(class(glmm_fin)=="try-error"|| glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_multi_random(y,Z_fastalles[,aaa],W,k,q_start=q_start,K=K,
                                                    Delta_start=Delta_start[c(aaa,rep(T,n%*%s))],s,n,steps=control$maxIter,
                                                    family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                    phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                    eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)    
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
         }
         
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {
           cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
@@ -3687,7 +3694,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       }  
       Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
-      if(class(glmm_fin)!="try-error")
+      if(!inherits(glmm_fin, "try-error"))
       {
         Delta_neu2<-Delta_neu
         Delta_neu2[c(aaa,rep(T,n%*%s))]<-glmm_fin$Delta
@@ -3700,9 +3707,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(is.null(family$multivariate)){
           Mu_opt<-family$linkinv(Eta_opt)
         }else{
-          Eta_cat <- matrix(Eta_opt, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          Mu_opt <- c(t(Mu_cat))
+          Mu_opt <- family$linkinv(Eta_opt, K)
         }
       }else{
         glmm_fin<-list()
@@ -3710,7 +3715,6 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         complexity<-df
       }
 
-#      browser()
       if(rnd.len==1)
       {
         if(s==1)
@@ -3765,14 +3769,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       names(Delta_neu)[1:lin] <- transf.names
       colnames(Standard_errors)[1:lin] <- rownames(Standard_errors)[1:lin] <- transf.names
       
-      
       ## Transform the coefficients back to the original scale if the design
       ## matrix was standardized
       if(standardize){
         if(any.notpen)
         {
           Delta_neu[inotpen.which] <- (1 / scale.notpen) * Delta_neu[inotpen.which]
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
             Standard_errors[inotpen.which] <- (1 / scale.notpen) * Standard_errors[inotpen.which]
         }
         ## For df > 1 we have to use a matrix inversion to go back to the
@@ -3780,13 +3783,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         for(j in 1:length(ipen.which)){
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
           {
             Sc.help <- solve(scale.pen[[j]])
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
           }
         }
-        if(s>1)
+        if(any(s>1))
           warning("Random slopes are not standardized back!")
       }
       
@@ -3803,7 +3806,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
         
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -3846,6 +3849,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
       ret.obj$W <- W
+      ret.obj$K <- K
       ret.obj$df<-df
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max
@@ -3916,11 +3920,9 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         Mu<-family$linkinv(Eta_start)
         SigmaInv <- 1/family$variance(Mu)
       }else{
-        Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-        Mu_cat <- family$linkinv(Eta_cat)
-        D <- family$deriv.mat(Mu_cat)
-        SigmaInv <- family$SigmaInv(Mu_cat)
-        Mu <- c(t(Mu_cat))
+        D <- family$deriv.mat(Eta_start, K)
+        Mu<-family$linkinv(Eta_start, K)
+        SigmaInv <- family$SigmaInv(Mu, K)
       }
       
       if(rnd.len==1)
@@ -3953,7 +3955,9 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       
       q<-dim(X)[2]
       
-      Z_alles<-cbind(X,U,Phi,W)
+      Z_fastalles<-cbind(X,U)
+      Z_alles<-cbind(Z_fastalles,Phi,W)
+
       ########################################################## some definitions ################################################
       Delta<-matrix(0,control$steps,(lin+dim.smooth+n%*%s))
       Delta[1,1:lin]<-beta_null[final.names]
@@ -4027,7 +4031,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       if(is.null(family$multivariate)){
         score_vec<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
       }else{
-        score_vec<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+        score_vec<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
       }  
       lambda.max<-max(abs(score_vec[(q+1):lin]))
       
@@ -4040,13 +4044,10 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       
       score_vec[(q+1):lin] <- grad.1
       
-      
       crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
-#      ranef.logLik<- -0.5*t(Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
-      
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                                          Grad=score_vec,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
                                          lower = 0, upper = Inf,K=K))
       
@@ -4075,15 +4076,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           Mu<-family$linkinv(Eta)
           SigmaInv <- 1/family$variance(Mu)
         }else{
-          Eta_cat <- matrix(Eta_start, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          D <- family$deriv.mat(Mu_cat)
-          SigmaInv <- family$SigmaInv(Mu_cat)
-          Mu <- c(t(Mu_cat))
+          D <- family$deriv.mat(Eta_start)
+          Mu<-family$linkinv(Eta, K)
+          SigmaInv <- family$SigmaInv(Mu, K)
         }          
         ranef.logLik<- -0.5*t(Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
         
-        logLik.vec[1]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+        logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
         Z_aktuell<-Z_alles[,active]
@@ -4122,14 +4121,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           }
           if(is.null(family$multivariate)){
             D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-            F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+            W_opt <- D*SigmaInv*D
+            F_gross<-t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
           }else{
-            F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+            F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
           }
           InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-          if(class(InvFisher2)=="try-error")
+          if(inherits(InvFisher2, "try-error"))
             InvFisher2<-try(solve(F_gross),silent=T)
-          if(class(InvFisher2)=="try-error")
+          if(inherits(InvFisher2, "try-error"))
           {
             #stop("Fisher matrix not invertible")  
             half.index<-half.index+1  
@@ -4178,14 +4179,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         
         if(rnd.len==1)
         {
-          
           if(s==1)
           {
             upp<-min(20,50*Q_start)
             low<-1e-14
             optim.obj<-try(nlminb(sqrt(Q_start),likelihood_nlminb,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),
                                   Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp))
-            if(class(optim.obj)=="try-error")
+            if(inherits(optim.obj, "try-error"))
               optim.obj<-try(bobyqa(sqrt(Q_start),likelihood_nlminb,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),
                                     Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp))
             Q1<-as.matrix(optim.obj$par)^2
@@ -4208,7 +4208,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
               Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
               Q_solvetest<-try(solve(Q1))
-              if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+              if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                 break
             }
           }   
@@ -4255,7 +4255,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
               Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
               Q_solvetest<-try(solve(Q1))
-              if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+              if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                 break
             }
           }
@@ -4303,7 +4303,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       if(is.null(family$multivariate)){
         score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[1,]
       }else{
-        score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[1,]
+        score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[1,]
       }  
       lambda.max<-max(abs(score_vec2[(q+1):lin]))
       
@@ -4318,7 +4318,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
 
-      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+      optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                                          Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
                                          lower = 0, upper = Inf,K=K))
       
@@ -4368,16 +4368,14 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               Mu<-family$linkinv(Eta)
               SigmaInv <- 1/family$variance(Mu)
             }else{
-              Eta_cat <- matrix(Eta, byrow = TRUE, ncol = K)
-              Mu_cat <- family$linkinv(Eta_cat)
-              D <- family$deriv.mat(Mu_cat)
-              SigmaInv <- family$SigmaInv(Mu_cat)
-              Mu <- c(t(Mu_cat))
+              D <- family$deriv.mat(Eta, K)
+              Mu<-family$linkinv(Eta, K)
+              SigmaInv <- family$SigmaInv(Mu, K)
             }
             
             ranef.logLik<- -0.5*t(Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
             
-            logLik.vec[l]<-logLik.glmmLasso(y=y,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K)
+            logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
             
             active_old<-active
             active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
@@ -4419,14 +4417,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               }
               if(is.null(family$multivariate)){
                 D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-                F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+                W_opt <- D*SigmaInv*D
+                F_gross<-t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
               }else{
-                F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+                W_opt <- RcppEigenProd2(D, SigmaInv)
+                F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
               }
               InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-              if(class(InvFisher2)=="try-error")
+              if(inherits(InvFisher2, "try-error"))
                 InvFisher2<-try(solve(F_gross),silent=T)
-              if(class(InvFisher2)=="try-error")
+              if(inherits(InvFisher2, "try-error"))
               {
                 half.index<-half.index+1  
               }else{
@@ -4483,7 +4483,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                   low<-0
                 
                 optim.obj<-try(nlminb(sqrt(Q1),likelihood_nlminb,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp))
-                if(class(optim.obj)=="try-error")
+                if(inherits(optim.obj, "try-error"))
                   optim.obj<-bobyqa(sqrt(Q1),likelihood_nlminb,D=D,SigmaInv=SigmaInv,family=family,X=cbind(Z_fastalles,Phi),X_aktuell=cbind(X_aktuell,Phi),Eta_tilde=Eta_tilde,n=n,Betadach=Betadach,W=W, lower = low, upper = upp)
                 
                 Q1<-as.matrix(optim.obj$par)^2
@@ -4502,7 +4502,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                   Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                   Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                   Q_solvetest<-try(solve(Q1))
-                  if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                  if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                     break
                 }
               }   
@@ -4541,7 +4541,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                   Q1[lower.tri(Q1)]<-((0.5)^ttt)*Q1[lower.tri(Q1)]
                   Q1[upper.tri(Q1)]<-((0.5)^ttt)*Q1[upper.tri(Q1)]
                   Q_solvetest<-try(solve(Q1))
-                  if(all (eigen(Q1)$values>0) & class(Q_solvetest)!="try-error")
+                  if(all (eigen(Q1)$values>0) & !inherits(Q_solvetest, "try-error"))
                     break
                 }
               }
@@ -4588,7 +4588,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           if(is.null(family$multivariate)){
             score_vec2<-t(Z_alles)%*%((y-Mu)*D*SigmaInv)-P1%*%Delta[l,]
           }else{
-            score_vec2<-t(Z_alles)%*%(D%*%(SigmaInv%*%(y-Mu)))-P1%*%Delta[l,]
+            score_vec2<-RcppEigenProd1(Z_alles, D, SigmaInv, y, Mu)-P1%*%Delta[l,]
           }  
           lambda.max<-max(abs(score_vec2[(q+1):lin]))
           
@@ -4603,7 +4603,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
           t_edge<-crit.obj$min.rate
 
-          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
+          optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
                                              Grad=score_vec2,family=family,P=diag(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]), 
                                              lower = 0, upper = Inf,K=K))
           
@@ -4658,23 +4658,29 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
           }
         }
         if(is.null(family$multivariate)){
-          D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
-          F_gross<-t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P_akt
+          if(control$method!="EM")
+          {
+            D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
+            W_opt <- D*SigmaInv*D
+          }  
+          F_gross <- t(Z_aktuell)%*%(Z_aktuell*W_opt)+P_akt
         }else{
-          F_gross<-t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D))%*%Z_aktuell)+P_akt
+          if(control$method!="EM")
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+          W_inv_t <- RcppEigenSpChol(W_opt)
+          F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P_akt
         }
         InvFisher2<-try(chol2inv(chol(F_gross)),silent=T)
-        if(class(InvFisher2)=="try-error")
+        if(inherits(InvFisher2, "try-error"))
           InvFisher2<-try(solve(F_gross),silent=T)
       }          
       
       if(is.null(family$multivariate)){
-        FinalHat<-(Z_aktuell*sqrt(D*SigmaInv*D))%*%(InvFisher2%*%t(Z_aktuell*sqrt(D*SigmaInv*D)))
+        FinalHat.df<-(Z_aktuell*sqrt(W_opt))%*%InvFisher2%*%t(Z_aktuell*sqrt(W_opt))
       }else{
-        W_inv_t <- chol(D%*%(SigmaInv%*%t(D)))
-        FinalHat<-W_inv_t%*%(Z_aktuell%*%(InvFisher2%*%(t(Z_aktuell)%*%t(W_inv_t))))
+        FinalHat.df <- RcppEigenProd3(W_inv_t, Z_aktuell, InvFisher2)
       }
-      df<-sum(diag(FinalHat))
+      df<-sum(diag(FinalHat.df))
       
       if(control$overdispersion)
         phi<-(sum((y-Mu)^2/family$variance(Mu)))/(N-df)
@@ -4716,16 +4722,16 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                           s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                           phi=phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                           Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-          if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_smooth(y,Z_fastalles[,aaa],Phi,W,k,n,penal.vec,q_start=q_start,K=K,
                                              Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                              s,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                              phi=control$phi,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                              Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
@@ -4735,22 +4741,22 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
                                                        s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                        phi=phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,eps.final=control$eps.final,
                                                        Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-          if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+          if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
           {  
             glmm_fin2<-try(glmm_final_multi_random_smooth(y,Z_fastalles[,aaa],Phi,W,k,penal.vec,q_start=q_start,K=K,
                                                           Delta_start=Delta_start[c(aaa,rep(T,dim.smooth+n%*%s))],
                                                           s,n,steps=control$maxIter,family=family,method=control$method.final,overdispersion=control$overdispersion,
                                                           phi=control$phi,rnd.len=rnd.len,print.iter.final=control$print.iter.final,flushit=control$flushit,
                                                           eps.final=control$eps.final,Q.max=Q.max,Q.min=Q.min,Q.fac=control$Q.fac),silent = TRUE)
-            if(class(glmm_fin2)!="try-error")
+            if(!inherits(glmm_fin2, "try-error"))
             {    
-              if(class(glmm_fin)=="try-error" || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
+              if(inherits(glmm_fin, "try-error") || (glmm_fin$opt>control$maxIter-10 && glmm_fin2$opt<control$maxIter-10))
                 glmm_fin<-glmm_fin2 
             }
           }
         }
         
-        if(class(glmm_fin)=="try-error" || glmm_fin$opt>control$maxIter-10)
+        if(inherits(glmm_fin, "try-error") || glmm_fin$opt>control$maxIter-10)
         {
           cat("\nWarning:\n")
           cat("Final Fisher scoring reestimation did not converge!\n")
@@ -4763,7 +4769,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       }  
       Standard_errors<-matrix(NA,length(Delta_neu),length(Delta_neu))
       
-      if(class(glmm_fin)!="try-error")
+      if(!inherits(glmm_fin, "try-error"))
       {
         EDF.matrix<-glmm_fin$EDF.matrix
         complexity.smooth<-sum(diag(EDF.matrix)[c(T,rep(F,sum(aaa)-1),rep(T,dim.smooth),rep(F,n%*%s))])  
@@ -4778,9 +4784,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(is.null(family$multivariate)){
           Mu_opt<-family$linkinv(Eta_opt)
         }else{
-          Eta_cat <- matrix(Eta_opt, byrow = TRUE, ncol = K)
-          Mu_cat <- family$linkinv(Eta_cat)
-          Mu_opt <- c(t(Mu_cat))
+          Mu_opt <- family$linkinv(Eta_opt, K)
         }
       }else{
         glmm_fin<-list()
@@ -4821,7 +4825,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
               }}
           }
         }
-        if(class(InvFisher2)=="try-error")
+        if(inherits(InvFisher2, "try-error"))
         {
           warning("No EDF's for smooth functions available, as Fisher matrix not invertible!")
           complexity.smooth<-dim.smooth
@@ -4831,7 +4835,9 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
             D <- as.vector(D);SigmaInv <- as.vector(SigmaInv)
             EDF.matrix<-InvFisher2%*%(t(Z_aktuell)%*%(Z_aktuell*D*SigmaInv*D)+P1a)
           }else{
-            EDF.matrix<-InvFisher2%*%(t(Z_aktuell)%*%(D%*%(SigmaInv%*%t(D)))%*%Z_aktuell+P1a)
+            W_opt <- RcppEigenProd2(D, SigmaInv)
+            F_gross <- t(Z_aktuell)%*%(W_opt%*%Z_aktuell)+P1a
+            EDF.matrix<-InvFisher2%*%F_gross
           }
           complexity.smooth<-sum(diag(EDF.matrix)[c(T,rep(F,sum(aaa)-1),rep(T,dim.smooth),rep(F,n%*%s))])
         }
@@ -4894,7 +4900,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         if(any.notpen)
         {
           Delta_neu[inotpen.which] <- (1 / scale.notpen) * Delta_neu[inotpen.which]
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
             Standard_errors[inotpen.which] <- (1 / scale.notpen) * Standard_errors[inotpen.which]
         }
         ## For df > 1 we have to use a matrix inversion to go back to the
@@ -4902,13 +4908,13 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
         for(j in 1:length(ipen.which)){
           ind <- ipen.which[[j]]
           Delta_neu[ind] <- solve(scale.pen[[j]], Delta_neu[ind,drop = FALSE])
-          if(class(glmm_fin)!="try-error")
+          if(!inherits(glmm_fin, "try-error"))
           {
             Sc.help <- solve(scale.pen[[j]])
             Standard_errors[ind,ind] <- t(Sc.help)%*%(Standard_errors[ind,ind]%*%Sc.help)
           }
         }
-        if(s>1)
+        if(any(s>1))
           warning("Random slopes are not standardized back!")
       }
       
@@ -4924,7 +4930,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
-        loglik<-logLik.glmmLasso(y=y,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K)
+        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -4974,6 +4980,7 @@ if(ic.dummy!=1 && sum(substr(very.old.names,1,9)=="as.factor")>0){
       ret.obj$y <- y
       ret.obj$X <- cbind(X,U)
       ret.obj$W <- W
+      ret.obj$K <- K
       ret.obj$df<-df
       ret.obj$loglik<-loglik
       ret.obj$lambda.max<-lambda.max

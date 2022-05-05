@@ -2,53 +2,61 @@ acat <- function()
 {
 family <- "acat"
 
-  responseFun <- function(eta){
-    q <- length(eta)
-    eta.help <- matrix(rep(c(0,eta),each=q+1),ncol=q+1)
+  responseHelp <- function(eta, K){
+    eta.help <- matrix(rep(c(0,eta),each=K+1),ncol=K+1)
     eta.help[upper.tri(eta.help)] <- 0
-    pi <- cumprod(c(1,exp(eta[-q])))/sum(apply(exp(eta.help),1,prod))
+    pi.temp <- cumprod(c(1,exp(eta[-K])))/sum(apply(exp(eta.help),1,prod))
+    pi.temp
+  }
+  
+  responseFun <- function(eta, K){
+    eta.temp <- matrix(eta, byrow = TRUE, ncol = K)
+    pi <- c(apply(eta.temp,1,responseHelp, K=K))
     pi
   } 
     
-  linkinv <- function(eta_cat){
-    t(apply(eta_cat,1,acat()$responseFun))
+  linkinv <- function(eta,K){
+    linkin <- acat()$responseFun(eta,K)
   }
   
   createSigmaInv <- function(mu){
     Sigma <- diag(mu) - mu %*% t(mu)
-    solve(Sigma)
+    RcppEigenInvMa(Sigma)
   }
   
-  mulist <- function(mu){
-    split(mu, rep(1:nrow(mu), ncol(mu)))
-    }
+  mulist <- function(mu,K){
+    mu.temp <- matrix(mu,ncol=K)
+    mu.list <- split(mu.temp, rep(1:nrow(mu.temp), ncol(mu.temp)))
+    mu.list
+  }
   
-  SigmaInv <- function(mu){
-    SigmaInv <- as.matrix(bdiag(lapply(acat()$mulist(mu),acat()$createSigmaInv)))
+  SigmaInv <- function(mu,K){
+    SigmaInv <- as(as.matrix(bdiag(lapply(acat()$mulist(mu,K),acat()$createSigmaInv))), "dgCMatrix")
     SigmaInv
   }
   
-  createD <- function(mu){
-    q <- length(mu)
-    
-    D2 <- matrix(0,q,q)
+  createD <- function(mu, K){
+#    browser()
+    D2 <- matrix(0,K,K)
     diag(D2) <- -(1/mu)
     
-    if(q==2){
+    if(K==2){
       D2[2,1] <- 1/mu[-1]
     }else{
-      diag(D2[2:q,1:(q-1)]) <- 1/mu[-1]
+      diag(D2[2:K,1:(K-1)]) <- 1/mu[-1]
     }
     
-    D2[,q] <- -1/(1-sum(mu))
-    D2[q,q] <- -(1-sum(mu[-q]))/((1-sum(mu))*mu[q])
+    D2[,K] <- -1/(1-sum(mu))
+    D2[K,K] <- -(1-sum(mu[-K]))/((1-sum(mu))*mu[K])
     
     D <- solve(D2)
     D
   }
   
-  deriv.mat <- function(mu_cat){
-    as.matrix(bdiag(lapply(acat()$mulist(mu_cat),acat()$createD)))
+  deriv.mat <- function(eta,K){
+    mu <- linkinv(eta, K = K)
+    d.temp <- as(as.matrix(bdiag(lapply(acat()$mulist(mu,K),acat()$createD, K = K))), "dgCMatrix")
+    d.temp
   }
   
   multivariate <- TRUE
