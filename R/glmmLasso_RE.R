@@ -1,10 +1,5 @@
 est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control)
 {  
-    trace(update.formula, at = 4,  print = FALSE,
-        tracer = quote({
-          out <- formula(terms.formula(tmp, simplify = TRUE, keep.order = TRUE))
-        }), where = asNamespace("glmmLasso"))
-  
   control<-do.call(glmmLassoControl, control)
   
   ## Print stuff.

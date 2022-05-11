@@ -1,4 +1,4 @@
-5a77b352779d7586e1d9b790a1fe208d *DESCRIPTION
+06b29037e174d5df263c27165dabbc5c *DESCRIPTION
 67788b5f6c820be177646083f9a0b3be *NAMESPACE
 c6e7648c92aa1fc573c424243637f49e *R/RcppExports.R
 ec16bb6a2b964a86a40218690d990f2f *R/bs.design.r
@@ -6,8 +6,8 @@ ec16bb6a2b964a86a40218690d990f2f *R/bs.design.r
 cde9fca10030989344328573c7755462 *R/family_cumulative.R
 c23398617286592745341e6f8699e56b *R/glmmLasso.r
 43d78c052a85022bf36e5e7dee12dff4 *R/glmmLassoControl.r
-83a82758478427c7490605a3423f754b *R/glmmLasso_RE.R
-a8430e2eb773bbdcc4439a79e9263b07 *R/glmmLasso_noRE.R
+aca488206b0a7c04ac1b39cf1c971b4d *R/glmmLasso_RE.R
+d62550f0ad738a9921a189c85bf5da1b *R/glmmLasso_noRE.R
 d43b59869b8c8c29226ef20e68b77986 *R/glmm_final.r
 7fc986c83280372a38b921bd45f0784b *R/glmm_final.smooth.r
 1c54507e370340dc955c55cf69d3b418 *R/glmm_final.smooth_noRE.R
@@ -23,9 +23,10 @@ c58f41427b397e3dcf0d253af267875b *data/soccer.rda
 aac38026c6b21e9c2fa335d2902f3461 *demo/glmmLasso-soccer.r
 e48240a7cb33b35888662afe63a86bda *man/acat.Rd
 fe4eaf01a0150fd5bea3a26ddcee4253 *man/cumulative.Rd
-362e189686451e3e72f80dd75c1bf0e1 *man/glmmLasso.rd
+9432b73b1fd80d7f13d4b3bd104418fc *man/glmmLasso.rd
 84a520a1acc0171bbf78ab8940af63a4 *man/glmmLassoControl.rd
 28383a78361c6cfedeabb71c419f845b *man/knee.Rd
 91a6d9c2694fa2e6df4a89dd6fdfc250 *man/soccer.Rd
 0f10f5d06f2be65ec14ad13f06b08247 *src/RcppExports.cpp
 b19b6bbc9cdddb0114253a6b6c5ad92c *src/cpphelpers.cpp
+1778c7ba6c605cadf04239f3547d0661 *tests/testglmmLasso.R
