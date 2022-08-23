@@ -31,7 +31,7 @@ family <- "acat"
   }
   
   SigmaInv <- function(mu,K){
-    SigmaInv <- as(as.matrix(bdiag(lapply(acat()$mulist(mu,K),acat()$createSigmaInv))), "dgCMatrix")
+    SigmaInv <- as(as(as(as.matrix(bdiag(lapply(acat()$mulist(mu,K),acat()$createSigmaInv))), "dMatrix"), "generalMatrix"), "CsparseMatrix")
     SigmaInv
   }
   
@@ -55,7 +55,7 @@ family <- "acat"
   
   deriv.mat <- function(eta,K){
     mu <- linkinv(eta, K = K)
-    d.temp <- as(as.matrix(bdiag(lapply(acat()$mulist(mu,K),acat()$createD, K = K))), "dgCMatrix")
+    d.temp <- as(as(as(as.matrix(bdiag(lapply(acat()$mulist(mu,K),acat()$createD, K = K))), "dMatrix"), "generalMatrix"), "CsparseMatrix")
     d.temp
   }
   
@@ -69,4 +69,3 @@ family <- "acat"
 
 }
   
-
