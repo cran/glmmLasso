@@ -530,7 +530,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       
       score_vec[(q+1):lin] <- grad.1
       
-      crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
+      crit.obj<-t_change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
       optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
@@ -573,7 +573,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           
           ranef.logLik<- -0.5*t(Delta[1,(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta[1,(lin+1):(lin+n%*%s)])
           
-          logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+          logLik.vec[1]<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
           
           active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,n%*%s))
           Z_aktuell<-Z_alles[,active]
@@ -801,7 +801,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         
         score_vec2[(q+1):lin] <- grad.1
         
-        crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
+        crit.obj<-t_change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
         t_edge<-crit.obj$min.rate
         
         optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
@@ -945,7 +945,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
               
               ranef.logLik<- -0.5*t(Delta[l,(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta[l,(lin+1):(lin+n%*%s)])
               
-              logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+              logLik.vec[l]<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
               
               active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,n%*%s))
               Z_aktuell<-Z_alles[,active]
@@ -1160,7 +1160,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             }
             score_vec2[(q+1):lin] <- grad.1
             
-            crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
+            crit.obj<-t_change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
             t_edge<-crit.obj$min.rate
             
             optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l,1:lin],ranef=Delta[l,(lin+1):(lin+n%*%s)],
@@ -1504,7 +1504,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
         
-        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
+        loglik<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -1741,7 +1741,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       
       score_vec[(q+1):lin] <- grad.1
       
-      crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
+      crit.obj<-t_change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
       optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
@@ -1783,7 +1783,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           }          
           ranef.logLik<- -0.5*t(Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
           
-          logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+          logLik.vec[1]<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
           
           active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
           Z_aktuell<-Z_alles[,active]
@@ -2017,7 +2017,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         }
         score_vec2[(q+1):lin] <- grad.1
         
-        crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
+        crit.obj<-t_change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
         t_edge<-crit.obj$min.rate
         
         optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
@@ -2166,7 +2166,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
               
               ranef.logLik<- -0.5*t(Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
               
-              logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+              logLik.vec[l]<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
               
               active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
               Z_aktuell<-Z_alles[,active]
@@ -2390,7 +2390,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             }
             score_vec2[(q+1):lin] <- grad.1
             
-            crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
+            crit.obj<-t_change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
             t_edge<-crit.obj$min.rate
             
             optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
@@ -2795,7 +2795,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
-        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
+        loglik<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -2987,7 +2987,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       
       score_vec[(q+1):lin] <- grad.1
       
-      crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
+      crit.obj<-t_change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
       optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:lin],ranef=Delta_start[(lin+1):(lin+n%*%s)],
@@ -3026,7 +3026,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         
         ranef.logLik<- -0.5*t(Delta[1,(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta[1,(lin+1):(lin+n%*%s)])
         
-        logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+        logLik.vec[1]<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,n%*%s))
         Z_aktuell<-Z_alles[,active]
@@ -3249,7 +3249,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       }
       score_vec2[(q+1):lin] <- grad.1
 
-      crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
+      crit.obj<-t_change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
       optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[1,1:lin],ranef=Delta[1,(lin+1):(lin+n%*%s)],
@@ -3309,7 +3309,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
 
             ranef.logLik<- -0.5*t(Delta[l,(lin+1):(lin+n%*%s)])%*%(P1[(lin+1):(lin+n%*%s),(lin+1):(lin+n%*%s)]%*%Delta[l,(lin+1):(lin+n%*%s)])
             
-            logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+            logLik.vec[l]<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
             
             active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,n%*%s))
             Z_aktuell<-Z_alles[,active]
@@ -3801,7 +3801,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
         
-        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+        loglik<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  
@@ -4039,7 +4039,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       
       score_vec[(q+1):lin] <- grad.1
       
-      crit.obj<-t.change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
+      crit.obj<-t_change(grad=score_vec[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
       
       optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta_start[1:(lin+dim.smooth)],ranef=Delta_start[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
@@ -4077,7 +4077,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
         }          
         ranef.logLik<- -0.5*t(Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
         
-        logLik.vec[1]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+        logLik.vec[1]<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         active<-c(rep(T,q),!is.element(Delta[1,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
         Z_aktuell<-Z_alles[,active]
@@ -4310,7 +4310,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       }
       score_vec2[(q+1):lin] <- grad.1
 
-      crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
+      crit.obj<-t_change(grad=score_vec2[(q+1):lin],b=Delta[1,(q+1):lin])
       t_edge<-crit.obj$min.rate
 
       optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[1,1:(lin+dim.smooth)],ranef=Delta[1,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
@@ -4370,7 +4370,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
             
             ranef.logLik<- -0.5*t(Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])%*%(P1[(lin+dim.smooth+1):(lin+dim.smooth+n%*%s),(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)]%*%Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)])
             
-            logLik.vec[l]<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
+            logLik.vec[l]<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu,ranef.logLik=ranef.logLik,family=family,penal=T,K=K, phi = phi)
             
             active_old<-active
             active<-c(rep(T,q),!is.element(Delta[l,(q+1):lin],0),rep(T,dim.smooth+n%*%s))
@@ -4595,7 +4595,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
           }
           score_vec2[(q+1):lin] <- grad.1
           
-          crit.obj<-t.change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
+          crit.obj<-t_change(grad=score_vec2[(q+1):lin],b=Delta[l,(q+1):lin])
           t_edge<-crit.obj$min.rate
 
           optim.obj<-suppressWarnings(nlminb(1e-16,taylor.opt,y=y,yhelp=yhelp,X=Z_alles,fixef=Delta[l,1:(lin+dim.smooth)],ranef=Delta[l,(lin+dim.smooth+1):(lin+dim.smooth+n%*%s)],
@@ -4925,7 +4925,7 @@ est.glmmLasso.RE<-function(fix,rnd,data,lambda,family,final.re,switch.NR,control
       
       if(is.element(family$family,c("gaussian", "binomial", "poisson","acat","cumulative"))) 
       {
-        loglik<-logLik.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
+        loglik<-logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=Mu_opt,ranef.logLik=glmm_fin$ranef.logLik,family=family,penal=T,K=K, phi = phi)
         
         if(control$complexity!="hat.matrix")  
         {  

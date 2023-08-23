@@ -1,5 +1,6 @@
 \name{glmmLasso}
 \alias{glmmLasso}
+\alias{glmmLasso-package}
 \docType{package}
 \title{
 Variable Selection for Generalized Linear Mixed Models by L1-Penalized Estimation.}
@@ -13,8 +14,8 @@ two methods for the computation of the random-effects variance-covariance parame
 \tabular{ll}{
 Package: \tab glmmLasso\cr
 Type: \tab Package\cr
-Version: \tab 1.6.1\cr
-Date: \tab 2022-10-05\cr
+Version: \tab 1.6.3\cr
+Date: \tab 2023-08-19\cr
 License: \tab GPL-2\cr
 LazyLoad: \tab yes\cr
 }

@@ -1,4 +1,4 @@
-logLik.glmmLasso<-function(y,yhelp,mu,ranef.logLik=NULL,family,penal=FALSE, K = NULL, phi = 1) 
+logLikeli.glmmLasso<-function(y,yhelp,mu,ranef.logLik=NULL,family,penal=FALSE, K = NULL, phi = 1) 
 {
   fam <- family$family
 

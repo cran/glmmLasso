@@ -7,7 +7,6 @@
 }
 
 \usage{
-
 glmmLassoControl(nue=1,index=NULL,smooth=NULL, start=NULL, q_start=NULL, 
                  center = TRUE, standardize = TRUE, steps=1000, 
                  method="EM", overdispersion=FALSE,     
@@ -50,7 +49,7 @@ glmmLassoControl(nue=1,index=NULL,smooth=NULL, start=NULL, q_start=NULL,
 }
 
 \author{
-Andreas Groll \email{groll@math.lmu.de}
+Andreas Groll \email{groll@statistik.tu-dortmund.de}
 }
 
 \seealso{

@@ -35,7 +35,7 @@ taylor.opt<-function(t_opt,y,yhelp,X,fixef,ranef,Grad,family,P, K=NULL)
     mu <- family$linkinv(Eta, K)
   }
   
-  loglik <- logLik.glmmLasso(y=y,yhelp=yhelp,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE,K=K) 
+  loglik <- logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE,K=K) 
   
   loglik<- -loglik + 0.5*t(delta[(length(fixef)+1):length(delta)]) %*% (P %*% delta[(length(fixef)+1):length(delta)])
   return(loglik)
@@ -50,7 +50,7 @@ taylor.opt.noRE<-function(t_opt,y,yhelp,X,fixef,Grad,family, K=NULL)
  }else{
    mu <- family$linkinv(Eta, K)
  }
-  loglik <- -logLik.glmmLasso(y=y,yhelp=yhelp,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE, K = K) 
+  loglik <- -logLikeli.glmmLasso(y=y,yhelp=yhelp,mu=mu,family=family,ranef.logLik=NULL,penal=FALSE, K = K) 
   return(loglik)
 }
 
@@ -117,7 +117,7 @@ gradient.lasso<-function(score.beta,b,lambda.b)
 }
 
 
-t.change<-function(grad,b)
+t_change<-function(grad,b)
 {
   a<-(sign(b)==-sign(grad)&sign(grad)!=0)
   rate <- rep(Inf, length(a))
